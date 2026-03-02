@@ -50,9 +50,31 @@
 				items.forEach(it => {
 					const el = document.createElement('div'); el.className='card';
 					const stateClass = it.grade === 'CRIT' ? 'crit' : it.grade === 'WARN' ? 'warn' : 'ok';
-					el.innerHTML = `<div class="title">${it.site} <span class="${stateClass}">• ${it.grade}</span></div>
+					const summaryHtml = `<div class="title">${it.site} <span class="${stateClass}">• ${it.grade}</span></div>
 						<div class="meta">Live: ${it.live || '-'} | CPU: ${it.cpu || '-'}% | WAN%: ${it.ispPct || '-'}% | Users: ${it.leases || '-'}</div>
 						<div class="meta">Last seen: ${fmtDate(it.lastSeen)}</div>`;
+					el.innerHTML = summaryHtml;
+
+					// details toggle
+					const details = document.createElement('div');
+					details.style.marginTop = '8px';
+					details.style.fontSize = '12px';
+					details.style.color = '#333';
+					details.style.display = 'none';
+					const topGroup = it.top_group ? `<div><b>Top Group:</b> ${it.top_group}</div>` : '';
+					const traffic = `<div><b>WAN:</b> ${it.isp_mbps || 0} Mbps (${it.ispPct || 0}%) • <b>LAN:</b> ${it.lan_mbps || 0} Mbps</div>`;
+					const top5 = (it.top5_users || '').split('|').map(s => s.trim()).filter(Boolean);
+					let top5Html = '';
+					if (top5.length) {
+						top5Html = '<div><b>Top Users:</b><ul style="margin:6px 0 0 18px;padding:0;">' + top5.map(u => `<li>${u}</li>`).join('') + '</ul></div>';
+					}
+					details.innerHTML = topGroup + traffic + top5Html;
+					el.appendChild(details);
+
+					el.addEventListener('click', () => {
+						details.style.display = details.style.display === 'none' ? 'block' : 'none';
+					});
+
 					cardsEl.appendChild(el);
 				});
 			}

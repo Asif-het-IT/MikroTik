@@ -10,6 +10,9 @@ Summary
 - Added a lightweight NOC Dashboard UI (`UI.html`) and `showDashboard()` menu entry (`Code.js`).
 - Added server helper `getDashboardData(limit)` in `Monitoring.js` to feed the UI.
 
+- Added per-user traffic breakdown: `USER_LOADS` sheet and `USER_HEAVY_MB` config (default 5MB).
+- Telegram alerts now include a `Top Users` section when device reports per-user usage (top-5), and the dashboard UI shows expandable per-site Top Users.
+
 Notes
 - No BigQuery calls remain; data is stored and handled entirely in Google Sheets.
 - The Apps Script project requires re-deploying if published; the files here are the source code changes.

@@ -1,7 +1,7 @@
 function buildTgMsg_(cfg, site, title, mode, d) {
   const icon = (mode === "ALERT") ? "🚨" : "✅";
   const fmt = cfgFmt_(cfg);
-  return [
+  const lines = [
     `${icon} <b>NOC Team Alert (${escapeHtml_(mode)})</b>`,
     "━━━━━━━━━━━━━━━━━━",
     `🏢 <b>Site:</b> ${escapeHtml_(site)}`,
@@ -9,9 +9,22 @@ function buildTgMsg_(cfg, site, title, mode, d) {
     `📊 <b>CPU:</b> ${numText_(d.cpu)}%  |  👥 <b>Active Users:</b> ${numText_(d.leases)}`,
     `🌐 <b>Internet:</b> ${escapeHtml_(d.isp || "-")}  |  🔐 <b>VPN:</b> ${escapeHtml_(d.vpn || "-")}  |  🟢 <b>Live:</b> ${escapeHtml_(d.live || "-")}`,
     `📶 <b>WAN Mbps:</b> ${numText_(d.isp_mbps)}  |  <b>WAN Load %:</b> ${numText_(d.isp_pct)}`,
-    "━━━━━━━━━━━━━━━━━━",
-    `🕒 Report Time: ${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), fmt)}`
-  ].join("\n");
+  ];
+
+  // Add Top-5 user details if available. Stored format is like "user (12.34MB) | user2 (8.00MB) | ..."
+  const top5Raw = String(d.top5_users || "").trim();
+  if (top5Raw) {
+    const parts = top5Raw.split("|").map(p => p.trim()).filter(Boolean);
+    if (parts.length) {
+      lines.push("━━━━━━━━━━━━━━━━━━");
+      lines.push("👥 <b>Top Users (per-device):</b>");
+      parts.forEach(p => lines.push(`   - ${escapeHtml_(p)}`));
+    }
+  }
+
+  lines.push("━━━━━━━━━━━━━━━━━━");
+  lines.push(`🕒 Report Time: ${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), fmt)}`);
+  return lines.join("\n");
 }
 
 function dailySummary() {

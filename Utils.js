@@ -154,3 +154,19 @@ function parseTop5Users_(queuesSnapshot) {
   const fmtMB = b => (b / 1024 / 1024).toFixed(2) + "MB";
   return top.map(x => `${x.name} (${fmtMB(x.bytes)})`).join(" | ");
 }
+
+function parseTop5UsersArray_(queuesSnapshot) {
+  const s = String(queuesSnapshot || "").trim();
+  if (!s) return [];
+  const parts = s.split("|").map(x => x.trim()).filter(Boolean);
+  const list = [];
+  for (const p of parts) {
+    const [name, bytesStr] = p.split("=");
+    const bytes = Number(bytesStr);
+    if (!name) continue;
+    if (!isFinite(bytes) || bytes <= 0) continue;
+    list.push({ name: name.trim(), bytes });
+  }
+  list.sort((a, b) => b.bytes - a.bytes);
+  return list.slice(0, 10); // return up to top 10 entries for analysis
+}

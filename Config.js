@@ -8,6 +8,7 @@ const SHEETS = {
   STATE: "STATE_LATEST",
   TREND: "TRAFFIC_TREND_7D",
   DASH: "DASHBOARD",
+  USER_LOADS: "USER_LOADS",
   AUDIT: "DATA_AUDIT",
   TG_OUT: "TG_OUTBOX",
   EXEC: "EXEC_REPORT",
@@ -44,6 +45,7 @@ const DEFAULT_HEADERS = {
     "top_group",
     "top5_users"
   ],
+  USER_LOADS: ["ts", "site", "user", "bytes", "mb", "pct_of_top5", "category", "raw_snapshot"],
   TREND: ["ts", "site", "isp_mbps", "lan_mbps", "unity_mbps", "store_mbps", "buk_mbps", "wifi_mbps", "isp_pct"],
   AUDIT: ["ts", "field_key", "friendly_name", "coverage_pct", "sample_value", "in_state", "collectable_from_router", "note"],
   TG_OUT: ["ts", "title", "chat_id", "message_html", "status", "result", "attempts"],
@@ -68,6 +70,7 @@ function ensureAll_(ss) {
   ensureSheet_(ss, SHEETS.LOG_DETAIL, DEFAULT_HEADERS.LOG_DETAIL);
   ensureSheet_(ss, SHEETS.STATE, DEFAULT_HEADERS.STATE);
   ensureSheet_(ss, SHEETS.TREND, DEFAULT_HEADERS.TREND);
+  ensureSheet_(ss, SHEETS.USER_LOADS, DEFAULT_HEADERS.USER_LOADS);
   ensureSheet_(ss, SHEETS.DASH, [""]);
   ensureSheet_(ss, SHEETS.AUDIT, DEFAULT_HEADERS.AUDIT);
   ensureSheet_(ss, SHEETS.TG_OUT, DEFAULT_HEADERS.TG_OUT);
@@ -191,6 +194,7 @@ function ensureConfigDefaults_(ss) {
     ISP_MAX_MBPS: "20",
     ISP_SAT_WARN_PCT: "70",
     ISP_SAT_CRIT_PCT: "90",
+    USER_HEAVY_MB: "5",
   };
 
   Object.keys(defaults).forEach(k => {

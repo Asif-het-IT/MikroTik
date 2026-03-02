@@ -375,10 +375,14 @@ function upsertState_(ss, cfg, r) {
     top5
   ]];
 
-  if (rowNum === -1) sh.appendRow(record[0]);
-  else sh.getRange(rowNum, 1, 1, record[0].length).setValues(record);
-
-  const finalRow = (rowNum === -1) ? sh.getLastRow() : rowNum;
+  // Ensure newest state records are always at the top (row 2). If a record for this site
+  // already exists, remove it and insert the new one at the top so latest data is first.
+  if (rowNum !== -1) {
+    try { sh.deleteRow(rowNum); } catch (e) {}
+  }
+  sh.insertRowBefore(2);
+  sh.getRange(2, 1, 1, record[0].length).setValues(record);
+  const finalRow = 2;
   styleSheetHeader_(sh);
   sh.getRange(finalRow, idx.last_seen + 1).setNumberFormat(cfgFmt_(cfg));
 }
@@ -398,23 +402,22 @@ function upsertStateFromLog_(ss, cfg, rlog) {
     }
   }
 
-  if (rowNum === -1) {
-    sh.appendRow([
-      rlog.site, rlog.ts_server, rlog.router, "",
-      "", "", "", "", "",
-      0, "", "",
-      "OK", liveInfo.live_state, liveInfo.stale_minutes,
-      "", "", "", "", "", "", "",
-      "", ""
-    ]);
-    styleSheetHeader_(sh);
-    sh.getRange(sh.getLastRow(), idx.last_seen + 1).setNumberFormat(cfgFmt_(cfg));
-  } else {
-    sh.getRange(rowNum, idx.last_seen + 1).setValue(rlog.ts_server).setNumberFormat(cfgFmt_(cfg));
-    sh.getRange(rowNum, idx.router + 1).setValue(rlog.router);
-    sh.getRange(rowNum, idx.live_state + 1).setValue(liveInfo.live_state);
-    sh.getRange(rowNum, idx.stale_minutes + 1).setValue(liveInfo.stale_minutes);
+  // Always insert/update the state record at the top (row 2).
+  if (rowNum !== -1) {
+    try { sh.deleteRow(rowNum); } catch (e) {}
   }
+
+  sh.insertRowBefore(2);
+  sh.getRange(2, 1, 1, 23).setValues([[
+    rlog.site, rlog.ts_server, rlog.router, "",
+    "", "", "", "", "",
+    0, "", "",
+    "OK", liveInfo.live_state, liveInfo.stale_minutes,
+    "", "", "", "", "", "", "",
+    "", ""
+  ]]);
+  styleSheetHeader_(sh);
+  sh.getRange(2, idx.last_seen + 1).setNumberFormat(cfgFmt_(cfg));
 }
 
 function calcGrade_(r, cfg) {
@@ -525,6 +528,20 @@ function trafficAnalyticsForSite_(ss, cfg, site) {
       st.getRange(rowNum, sidx.isp_mbps + 1, 1, 8).setValues([[
         isp_mbps, lan_mbps, unity_mbps, store_mbps, buk_mbps, wifi_mbps, isp_pct, top_group
       ]]);
+      // Write per-user breakdown into USER_LOADS sheet
+      try {
+        const rawSh = ss.getSheetByName(SHEETS.RAW);
+        const rawData = rawSh.getDataRange().getValues();
+        const ridx = idxRaw_(rawData[0]);
+        let topSnapshot = "";
+        for (let r = 1; r < rawData.length; r++) {
+          if (String(rawData[r][ridx.site]) === String(site)) {
+            topSnapshot = String(rawData[r][ridx.top5_users] || rawData[r][ridx.queues] || "");
+            break;
+          }
+        }
+        trafficUserBreakdownForSite_(ss, cfg, site, topSnapshot, isp_mbps);
+      } catch (e) { /* ignore user breakdown errors */ }
       break;
     }
   }
@@ -544,6 +561,31 @@ function updateTrend_(ss, cfg, ts, site, isp, lan, unity, store, buk, wifi, ispP
   if (last > keep + 1) {
     sh.deleteRows(keep + 2, last - (keep + 1));
   }
+}
+
+function trafficUserBreakdownForSite_(ss, cfg, site, queuesSnapshot, isp_mbps) {
+  if (!queuesSnapshot) return;
+  const sh = ss.getSheetByName(SHEETS.USER_LOADS);
+  const now = new Date();
+  const arr = parseTop5UsersArray_(queuesSnapshot);
+  if (!arr || !arr.length) return;
+
+  // sum top bytes to compute pct per user
+  const totalTop = arr.reduce((s, x) => s + (Number(x.bytes) || 0), 0) || 1;
+  const rows = arr.map(u => {
+    const bytes = Number(u.bytes) || 0;
+    const mb = Math.round((bytes / 1024 / 1024) * 100) / 100;
+    const pct = Math.round((bytes / totalTop) * 1000) / 10; // one decimal pct
+    const category = mb >= cfgNum_(cfg, "USER_HEAVY_MB", 5) ? "HEAVY" : "LIGHT";
+    return [now, site, u.name, bytes, mb, pct, category, String(queuesSnapshot).slice(0, 1000)];
+  });
+
+  // Append rows (keep recent first behavior)
+  for (let i = rows.length - 1; i >= 0; i--) {
+    sh.insertRowBefore(2);
+    sh.getRange(2, 1, 1, rows[i].length).setValues([rows[i]]);
+  }
+  styleSheetHeader_(sh);
 }
 
 function rebuildDashboard() {
@@ -1174,7 +1216,23 @@ function processAlert_(ss, cfg, site, type, condition, title, data) {
       const now = new Date();
       sh.appendRow([fingerprint, site, type, title, now, now, "ACTIVE"]);
       logSh.appendRow([now, site, type, "RAISED", title, JSON.stringify(data).slice(0, 4500)]);
-      const msg = buildTgMsg_(cfg, site, title, "ALERT", data);
+      // Enrich alert payload with top5 users (if available) so Telegram shows per-user usage
+      let top5Str = "";
+      try {
+        const svals = ss.getSheetByName(SHEETS.STATE).getDataRange().getValues();
+        if (svals.length > 1) {
+          const sidx = idxState_(svals[0]);
+          for (let j = 1; j < svals.length; j++) {
+            if (String(svals[j][sidx.site]) === String(site)) {
+              top5Str = String(svals[j][sidx.top5_users] || "");
+              break;
+            }
+          }
+        }
+      } catch (e) { top5Str = ""; }
+
+      const enriched = Object.assign({}, data, { top5_users: top5Str });
+      const msg = buildTgMsg_(cfg, site, title, "ALERT", enriched);
       queueTelegram_(ss, cfg, `NOC Alert • ${site}`, msg);
       queueEmail_(ss, cfg, `NOC Alert: ${site} - ${type}`, msg, true);
     } else {
@@ -1185,7 +1243,23 @@ function processAlert_(ss, cfg, site, type, condition, title, data) {
     const oldTitle = String(sh.getRange(row, 4).getValue() || type);
     sh.deleteRow(row);
     logSh.appendRow([now, site, type, "RESOLVED", oldTitle, JSON.stringify(data).slice(0, 4500)]);
-    const resolved = buildTgMsg_(cfg, site, `✅ RESOLVED: ${type}`, "RESOLVED", data);
+    // Include any available top5 users in the resolved message as well
+    let top5StrR = "";
+    try {
+      const svalsR = ss.getSheetByName(SHEETS.STATE).getDataRange().getValues();
+      if (svalsR.length > 1) {
+        const sidxR = idxState_(svalsR[0]);
+        for (let j = 1; j < svalsR.length; j++) {
+          if (String(svalsR[j][sidxR.site]) === String(site)) {
+            top5StrR = String(svalsR[j][sidxR.top5_users] || "");
+            break;
+          }
+        }
+      }
+    } catch (e) { top5StrR = ""; }
+
+    const enrichedR = Object.assign({}, data, { top5_users: top5StrR });
+    const resolved = buildTgMsg_(cfg, site, `✅ RESOLVED: ${type}`, "RESOLVED", enrichedR);
     queueTelegram_(ss, cfg, `NOC Resolved • ${site}`, resolved);
     queueEmail_(ss, cfg, `NOC Resolved: ${site} - ${type}`, resolved, true);
   }
@@ -1613,9 +1687,17 @@ function getDashboardData(limit) {
     const cpu = Number(row[idx.cpu] || 0);
     const leases = Number(row[idx.leases] || 0);
     const lastSeen = row[idx.last_seen];
+    const isp_mbps = Number(row[idx.isp_mbps] || 0);
+    const lan_mbps = Number(row[idx.lan_mbps] || 0);
+    const unity_mbps = Number(row[idx.unity_mbps] || 0);
+    const store_mbps = Number(row[idx.store_mbps] || 0);
+    const buk_mbps = Number(row[idx.buk_mbps] || 0);
+    const wifi_mbps = Number(row[idx.wifi_mbps] || 0);
+    const top_group = String(row[idx.top_group] || "");
+    const top5_users = String(row[idx.top5_users] || "");
     const priority = statusPriority_(grade, live, isp, vpn, ispPct);
 
-    recs.push({ site, grade, live, isp, vpn, ispPct, cpu, leases, lastSeen, priority });
+    recs.push({ site, grade, live, isp, vpn, ispPct, isp_mbps, lan_mbps, unity_mbps, store_mbps, buk_mbps, wifi_mbps, top_group, top5_users, cpu, leases, lastSeen, priority });
   }
 
   recs.sort((a, b) => b.priority - a.priority);
