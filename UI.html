@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+	<head>
+		<base target="_top">
+		<style>
+			body{font-family:Arial,Helvetica,sans-serif;margin:8px}
+			.hdr{display:flex;align-items:center;justify-content:space-between}
+			.cards{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+			.card{border:1px solid #ddd;padding:8px;border-radius:6px}
+			.title{font-weight:bold}
+			.meta{color:#555;font-size:12px}
+			.ok{color:green}.warn{color:orange}.crit{color:red}
+			.toolbar{display:flex;gap:8px}
+		</style>
+	</head>
+	<body>
+		<div class="hdr">
+			<div>
+				<div style="font-weight:700">NOC Dashboard</div>
+				<div style="font-size:12px;color:#666">Top priority sites</div>
+			</div>
+			<div class="toolbar">
+				<button id="refreshBtn">Refresh</button>
+				<select id="limitSel">
+					<option value="10">Top 10</option>
+					<option value="20">Top 20</option>
+					<option value="50">Top 50</option>
+				</select>
+			</div>
+		</div>
+
+		<div id="last" class="meta">Loading...</div>
+		<div id="cards" class="cards"></div>
+
+		<script>
+			const cardsEl = document.getElementById('cards');
+			const lastEl = document.getElementById('last');
+			const refreshBtn = document.getElementById('refreshBtn');
+			const limitSel = document.getElementById('limitSel');
+
+			function fmtDate(d){
+				try { return new Date(d).toLocaleString(); } catch(e){ return '-'; }
+			}
+
+			function render(items){
+				cardsEl.innerHTML = '';
+				lastEl.textContent = `Updated: ${new Date().toLocaleString()}`;
+				if (!items || !items.length){ cardsEl.innerHTML = '<div class="meta">No data</div>'; return; }
+
+				items.forEach(it => {
+					const el = document.createElement('div'); el.className='card';
+					const stateClass = it.grade === 'CRIT' ? 'crit' : it.grade === 'WARN' ? 'warn' : 'ok';
+					el.innerHTML = `<div class="title">${it.site} <span class="${stateClass}">• ${it.grade}</span></div>
+						<div class="meta">Live: ${it.live || '-'} | CPU: ${it.cpu || '-'}% | WAN%: ${it.ispPct || '-'}% | Users: ${it.leases || '-'}</div>
+						<div class="meta">Last seen: ${fmtDate(it.lastSeen)}</div>`;
+					cardsEl.appendChild(el);
+				});
+			}
+
+			function load(){
+				refreshBtn.disabled = true;
+				const limit = Number(limitSel.value || 10);
+				google.script.run.withSuccessHandler(data => { render(data); refreshBtn.disabled = false; }).getDashboardData(limit);
+			}
+
+			refreshBtn.addEventListener('click', load);
+			limitSel.addEventListener('change', load);
+			// auto-refresh every 60s
+			setInterval(load, 60000);
+			load();
+		</script>
+	</body>
+</html>

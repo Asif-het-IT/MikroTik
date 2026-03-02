@@ -1,6 +1,136 @@
 function ingest_(e) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(8000)) return ContentService.createTextOutput("LOCK_BUSY");
+  
+  let ss = null;
+  try {
+    ss = SpreadsheetApp.openById(SS_ID);
+    ensureAll_(ss);
+  
+    const cfg = getCfg_(ss);
+    const p = (e && e.parameter) ? e.parameter : {};
+  
+    const inToken = String(p.token || "").trim();
+    const t1 = String(cfgStr_(cfg, "TOKEN", "")).trim();
+    const t2 = String(cfgStr_(cfg, "TOKEN_ALT", "")).trim();
+    const knownTokens = [
+      t1,
+      t2,
+      "MONITOR_TOKEN_2026",
+      "HET_MONITOR_TOKEN_2026",
+    ].filter(Boolean);
+    const validToken = inToken && knownTokens.indexOf(inToken) !== -1;
+  
+    if (!validToken) {
+      logErr_(
+        ss,
+        "AUTH_FAIL",
+        `Invalid token (recv=${inToken.slice(0, 8)}..., cfg=${t1.slice(0, 8)}..., alt=${t2.slice(0, 8)}...)`,
+        JSON.stringify(p).slice(0, 1500)
+      );
+      return ContentService.createTextOutput("AUTH_FAIL");
+    }
+  
+    const now = new Date();
+    const type = safeText_(p.type || "live", 16).toLowerCase();
+  
+    if (type === "log" || type === "rlog") {
+      const logMsg = safeText_(p.msg || "", 800);
+      const logObj = {
+        ts_server: now,
+        type: (type === "rlog" ? "rlog" : "log"),
+        site: safeText_(p.site || cfgStr_(cfg, "SITE", "UNKNOWN"), 32),
+        router: safeText_(p.router || "", 64),
+        msg: logMsg,
+        payload_json: JSON.stringify(p).slice(0, 4500),
+        ingest_status: "OK",
+      };
+  
+      if (type === "rlog") {
+        const detailObj = {
+          ts_server: now,
+          site: logObj.site,
+          router: logObj.router,
+          log_time: safeText_(p.log_time || "", 32),
+          log_topics: safeText_(p.log_topics || "", 128),
+          log_buffer: safeText_(p.log_buffer || "", 32),
+          msg: logMsg,
+          payload_json: logObj.payload_json,
+          ingest_status: "OK",
+        };
+        writeLogDetailTop_(ss, cfg, detailObj);
+        if (detailObj.log_topics) {
+          logObj.msg = `[${detailObj.log_topics}] ${detailObj.msg}`.slice(0, 800);
+        }
+      }
+  
+      writeLogTop_(ss, cfg, logObj);
+      upsertStateFromLog_(ss, cfg, logObj);
+      maybeAutoOutbox_(ss, cfg);
+      return ContentService.createTextOutput("OK");
+    }
+  
+    const hotspotActive = (p.hotspot_active === undefined || p.hotspot_active === null || String(p.hotspot_active).trim() === "")
+      ? 0 : safeNum_(p.hotspot_active);
+  
+    const rowObj = {
+      ts_server: now,
+      type: "live",
+      site: safeText_(p.site || cfgStr_(cfg, "SITE", "UNKNOWN"), 32),
+      router: safeText_(p.router || "", 64),
+      uptime: safeText_(p.uptime || "", 48),
+      cpu: safeNum_(p.cpu),
+      memfree: safeNum_(p.memfree),
+      memtotal: safeNum_(p.memtotal),
+      mem_pct: "",
+      isp: safeEnum_(p.isp, ["UP", "DOWN", ""], ""),
+      ipsec: safeEnum_(p.ipsec, ["UP", "DOWN", ""], ""),
+      rdp: safeEnum_(p.rdp, ["UP", "DOWN", ""], ""),
+      hotspot_active: hotspotActive,
+      leases: safeNum_(p.leases),
+      wanip: safeText_(p.wanip || "", 64),
+      isp_rx: safeNum_(p.isp_rx),
+      isp_tx: safeNum_(p.isp_tx),
+      lan_rx: safeNum_(p.lan_rx),
+      lan_tx: safeNum_(p.lan_tx),
+      unity_rx: safeNum_(p.unity_rx),
+      unity_tx: safeNum_(p.unity_tx),
+      store_rx: safeNum_(p.store_rx),
+      store_tx: safeNum_(p.store_tx),
+      buk_rx: safeNum_(p.buk_rx),
+      buk_tx: safeNum_(p.buk_tx),
+      wifi_rx: safeNum_(p.wifi_rx),
+      wifi_tx: safeNum_(p.wifi_tx),
+      top5_users: safeText_(p.top5_users || "", 1800),
+      queues: safeText_(p.queues || "", 4500),
+      payload_json: JSON.stringify(p).slice(0, 4500),
+      ingest_status: "OK",
+    };
+  
+    rowObj.mem_pct = calcMemPct_(rowObj.memfree, rowObj.memtotal);
+  
+    writeRaw_(ss, cfg, rowObj);
+    enforceRawRetention_(ss, cfg);
+    upsertState_(ss, cfg, rowObj);
+    trafficAnalyticsForSite_(ss, cfg, rowObj.site);
+    maybeRunEngines_(ss, cfg);
+    maybeAutoOutbox_(ss, cfg);
+  
+    return ContentService.createTextOutput("OK");
+  } catch (err) {
+    try {
+      if (!ss) ss = SpreadsheetApp.openById(SS_ID);
+      logErr_(ss, "INGEST", String(err), safeText_(JSON.stringify(e || {}), 1500));
+    } catch (_) {}
+    return ContentService.createTextOutput("ERROR");
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+function ingest_(e) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(8000)) return ContentService.createTextOutput("LOCK_BUSY");
 
   let ss = null;
   try {
@@ -1462,4 +1592,33 @@ function testIngestLog() {
       msg: "Manual log test"
     }
   });
+}
+
+function getDashboardData(limit) {
+  const ss = SpreadsheetApp.openById(SS_ID);
+  ensureAll_(ss);
+  const st = ss.getSheetByName(SHEETS.STATE).getDataRange().getValues();
+  if (st.length < 2) return [];
+  const idx = idxState_(st[0]);
+  const recs = [];
+
+  for (let i = 1; i < st.length; i++) {
+    const row = st[i];
+    const site = String(row[idx.site] || "");
+    const grade = String(row[idx.status_grade] || "OK");
+    const live = String(row[idx.live_state] || "");
+    const isp = String(row[idx.isp] || "");
+    const vpn = String(row[idx.ipsec] || "");
+    const ispPct = Number(row[idx.isp_pct] || 0);
+    const cpu = Number(row[idx.cpu] || 0);
+    const leases = Number(row[idx.leases] || 0);
+    const lastSeen = row[idx.last_seen];
+    const priority = statusPriority_(grade, live, isp, vpn, ispPct);
+
+    recs.push({ site, grade, live, isp, vpn, ispPct, cpu, leases, lastSeen, priority });
+  }
+
+  recs.sort((a, b) => b.priority - a.priority);
+  const n = Math.max(10, Number(limit || 10));
+  return recs.slice(0, n);
 }

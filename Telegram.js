@@ -185,28 +185,53 @@ function processOutboxNow() {
   if (data.length < 2) return;
 
   const idx = { ts: 0, title: 1, chat: 2, msg: 3, status: 4, result: 5, attempts: 6 };
+  const now = new Date();
 
   for (let i = 1; i < data.length; i++) {
     const status = String(data[i][idx.status] || "");
     if (status !== "PENDING") continue;
 
     const attempts = Number(data[i][idx.attempts] || 0);
-    if (attempts >= 3) {
+    if (attempts >= 5) {
       sh.getRange(i + 1, idx.status + 1).setValue("FAILED");
       sh.getRange(i + 1, idx.result + 1).setValue("Max attempts reached");
       continue;
     }
 
+    // Backoff: use ts column as last attempt time. skip if within backoff window.
+    const lastTs = data[i][idx.ts];
+    const minutesSince = (lastTs instanceof Date) ? ((now - lastTs) / 60000) : 99999;
+    const backoffMin = attempts <= 0 ? 0 : Math.min(60, Math.pow(2, attempts));
+    if (attempts > 0 && minutesSince < backoffMin) continue;
+
+    // mark last attempt timestamp so retries honor backoff
+    sh.getRange(i + 1, idx.ts + 1).setValue(now);
+
     const chatId = String(data[i][idx.chat] || "").trim();
     const text = String(data[i][idx.msg] || "");
     const res = sendTelegramRaw_(bot, chatId, text);
 
-    sh.getRange(i + 1, idx.attempts + 1).setValue(attempts + 1);
-    sh.getRange(i + 1, idx.status + 1).setValue(res.ok ? "SENT" : "PENDING");
-    sh.getRange(i + 1, idx.result + 1).setValue(res.info.slice(0, 900));
+    const newAttempts = attempts + 1;
+    sh.getRange(i + 1, idx.attempts + 1).setValue(newAttempts);
 
-    if (!res.ok && /HTTP_(401|403|400)/.test(res.info)) {
-      sh.getRange(i + 1, idx.status + 1).setValue("FAILED");
+    if (res.ok) {
+      sh.getRange(i + 1, idx.status + 1).setValue("SENT");
+      sh.getRange(i + 1, idx.result + 1).setValue(res.info.slice(0, 900));
+    } else {
+      // provide structured result with next backoff suggestion
+      const nextBackoffMin = Math.min(60, Math.pow(2, newAttempts));
+      const nextTry = new Date(now.getTime() + nextBackoffMin * 60000);
+      const resText = `${res.info} | next_try=${Utilities.formatDate(nextTry, Session.getScriptTimeZone(), cfgFmt_(cfg))}`;
+      sh.getRange(i + 1, idx.result + 1).setValue(String(resText).slice(0, 900));
+
+      // If auth or client errors mark FAILED
+      if (/HTTP_(401|403|400)/.test(res.info) || /EXCEPTION/.test(res.info)) {
+        sh.getRange(i + 1, idx.status + 1).setValue("FAILED");
+        logErr_(ss, "TG_OUT", `Permanent failure for chat ${chatId}`, res.info);
+      } else {
+        sh.getRange(i + 1, idx.status + 1).setValue("PENDING");
+        logErr_(ss, "TG_RETRY", `Transient failure for chat ${chatId}`, res.info);
+      }
     }
   }
 }
@@ -225,10 +250,17 @@ function sendTelegramRaw_(botToken, chatId, htmlText) {
       }
     });
     const code = res.getResponseCode();
-    const body = res.getContentText() || "";
-    return { ok: (code >= 200 && code < 300), info: `HTTP_${code} ${body}` };
+      const body = res.getContentText() || "";
+      try {
+        const j = JSON.parse(body);
+        if (j && j.ok) return { ok: true, info: `HTTP_${code} OK` };
+        const desc = (j && j.description) ? j.description : body;
+        return { ok: false, info: `HTTP_${code} ${String(desc).slice(0, 800)}` };
+      } catch (e) {
+        return { ok: (code >= 200 && code < 300), info: `HTTP_${code} ${body}` };
+      }
   } catch (err) {
-    return { ok: false, info: `EXCEPTION ${String(err)}` };
+      return { ok: false, info: `EXCEPTION ${String(err)}` };
   }
 }
 
