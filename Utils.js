@@ -128,7 +128,47 @@ function idxRaw_(header) {
     buk_tx: m.buk_tx,
     wifi_rx: m.wifi_rx,
     wifi_tx: m.wifi_tx,
+    top5_users: m.top5_users,
+    queues: m.queues,
+    payload_json: m.payload_json,
   };
+}
+
+function extractTop5FromPayload_(payload) {
+  if (!payload) return "";
+  try {
+    const j = (typeof payload === 'string') ? JSON.parse(payload) : payload;
+    const candidates = [];
+    // Known keys that may contain per-user info
+    ['top5_users', 'dhcp_top10', 'hotspot_top10', 'queues', 'top10'].forEach(k => {
+      if (j[k]) candidates.push(j[k]);
+    });
+
+    // If top5_users is already a formatted string, return that
+    if (j.top5_users && typeof j.top5_users === 'string' && j.top5_users.trim()) return j.top5_users;
+
+    // If any candidate looks like an array/object, try to convert to "name=bytes | ..." format
+    for (const c of candidates) {
+      if (!c) continue;
+      if (Array.isArray(c)) {
+        const parts = c.map(x => {
+          if (typeof x === 'string') return x;
+          if (x.name && x.bytes) return `${x.name}=${x.bytes}`;
+          return '';
+        }).filter(Boolean);
+        if (parts.length) return parts.join(' | ');
+      }
+      if (typeof c === 'object') {
+        // object with name:bytes map
+        const parts = Object.keys(c).slice(0, 10).map(k => `${k}=${c[k]}`);
+        if (parts.length) return parts.join(' | ');
+      }
+      if (typeof c === 'string' && c.trim()) return c;
+    }
+    return '';
+  } catch (e) {
+    return '';
+  }
 }
 
 function idxMap_(header) {

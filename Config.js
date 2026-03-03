@@ -47,6 +47,8 @@ const DEFAULT_HEADERS = {
   ],
   USER_LOADS: ["ts", "site", "user", "bytes", "mb", "pct_of_top5", "category", "raw_snapshot"],
   TREND: ["ts", "site", "isp_mbps", "lan_mbps", "unity_mbps", "store_mbps", "buk_mbps", "wifi_mbps", "isp_pct"],
+  RAW_USER_SNAPSHOTS: ["ts", "site", "router", "ip", "mac", "host", "rx_total", "tx_total", "total_bytes", "iface", "interval_sec", "payload_json"],
+  DAILY_USER_AGG: ["date", "site", "ip", "mac", "host", "total_bytes", "total_mb", "total_seconds", "avg_mbps", "resets", "iface_breakdown"],
   AUDIT: ["ts", "field_key", "friendly_name", "coverage_pct", "sample_value", "in_state", "collectable_from_router", "note"],
   TG_OUT: ["ts", "title", "chat_id", "message_html", "status", "result", "attempts"],
   EXEC: [
@@ -71,6 +73,8 @@ function ensureAll_(ss) {
   ensureSheet_(ss, SHEETS.STATE, DEFAULT_HEADERS.STATE);
   ensureSheet_(ss, SHEETS.TREND, DEFAULT_HEADERS.TREND);
   ensureSheet_(ss, SHEETS.USER_LOADS, DEFAULT_HEADERS.USER_LOADS);
+  ensureSheet_(ss, SHEETS.RAW_USER_SNAPSHOTS, DEFAULT_HEADERS.RAW_USER_SNAPSHOTS);
+  ensureSheet_(ss, SHEETS.DAILY_USER_AGG, DEFAULT_HEADERS.DAILY_USER_AGG);
   ensureSheet_(ss, SHEETS.DASH, [""]);
   ensureSheet_(ss, SHEETS.AUDIT, DEFAULT_HEADERS.AUDIT);
   ensureSheet_(ss, SHEETS.TG_OUT, DEFAULT_HEADERS.TG_OUT);
@@ -97,6 +101,21 @@ function getCfg_(ss) {
   }
   cache.put(ckey, JSON.stringify(map), 60);
   return map;
+}
+
+function setCfgValue_(ss, key, value) {
+  const sh = ss.getSheetByName(SHEETS.CFG);
+  const v = sh.getDataRange().getValues();
+  for (let i = 1; i < v.length; i++) {
+    if (String(v[i][0] || "").trim() === String(key)) {
+      sh.getRange(i + 1, 2).setValue(String(value));
+      // clear cache
+      try { CacheService.getScriptCache().remove('NOC_CFG_V8'); } catch (e) {}
+      return;
+    }
+  }
+  sh.appendRow([String(key), String(value)]);
+  try { CacheService.getScriptCache().remove('NOC_CFG_V8'); } catch (e) {}
 }
 
 function cfgStr_(cfg, key, def = "") {
@@ -133,6 +152,8 @@ function installTriggers() {
   ScriptApp.newTrigger("smartAlertEngine").timeBased().everyMinutes(alertMin).create();
   ScriptApp.newTrigger("rebuildDashboard").timeBased().everyMinutes(dashMin).create();
   ScriptApp.newTrigger("dailySummary").timeBased().everyDays(1).atHour(dailyHour).nearMinute(0).create();
+  const topUsersHour = Math.max(0, Math.min(23, cfgNum_(cfg, "TOP_USERS_HOUR", 22)));
+  ScriptApp.newTrigger("generateTopUsersReport").timeBased().everyDays(1).atHour(topUsersHour).nearMinute(0).create();
   ScriptApp.newTrigger("buildExecReportNow").timeBased().everyHours(execEveryHours).create();
   ScriptApp.newTrigger("retentionCleanupNow").timeBased().everyHours(6).create();
 }
@@ -195,6 +216,7 @@ function ensureConfigDefaults_(ss) {
     ISP_SAT_WARN_PCT: "70",
     ISP_SAT_CRIT_PCT: "90",
     USER_HEAVY_MB: "5",
+    TOP_USERS_HOUR: "22",
   };
 
   Object.keys(defaults).forEach(k => {

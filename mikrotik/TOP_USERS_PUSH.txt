@@ -1,0 +1,53 @@
+# MikroTik RouterOS minimal snapshot script (push top users + dhcp leases)
+# Run every 10m via /system scheduler add
+
+# This is a *template* — adapt interface names and dhcp/server names.
+:local url "https://script.google.com/macros/s/REPLACE_WITH_YOUR_DEPLOYED_URL/exec"
+:local token "MONITOR_TOKEN_2026"
+:local site "KANO"
+:local routerName [/system identity get name]
+:local ts [/system clock get time]
+
+# collect DHCP leases (active)
+:local dhcpList ""
+:foreach i in=[/ip dhcp-server lease find where active=yes] do={
+  :local ip [/ip dhcp-server lease get $i address]
+  :local mac [/ip dhcp-server lease get $i mac-address]
+  :local host [/ip dhcp-server lease get $i host-name]
+  :set dhcpList ($dhcpList . "{" . "\"ip\":\"" . $ip . "\",\"mac\":\"" . $mac . "\",\"host\":\"" . $host . "\"},")
+}
+:if ([:len $dhcpList] > 0) do={:set dhcpList ("[" . [:pick $dhcpList 0 ([:len $dhcpList] - 1)] . "]")}
+:if ([:len $dhcpList] = 0) do={:set dhcpList "[]"}
+
+# collect hotspot active (if any) -> get rx/tx
+:local hsList ""
+:if ([:len [/ip hotspot active find]] > 0) do={
+  :foreach i in=[/ip hotspot active find] do={
+    :local ip [/ip hotspot active get $i address]
+    :local mac [/ip hotspot active get $i mac-address]
+    :local user [/ip hotspot active get $i user]
+    :local rx [/ip hotspot active get $i bytes-in]
+    :local tx [/ip hotspot active get $i bytes-out]
+    :set hsList ($hsList . "{" . "\"ip\":\"" . $ip . "\",\"mac\":\"" . $mac . "\",\"user\":\"" . $user . "\",\"rx\":\"" . $rx . "\",\"tx\":\"" . $tx . "\"},")
+  }
+}
+:if ([:len $hsList] > 0) do={:set hsList ("[" . [:pick $hsList 0 ([:len $hsList] - 1)] . "]")} else={:set hsList "[]"}
+
+# interface counters (WAN/LAN) - adjust names
+:local wanRx [/interface monitor-traffic ether1 once do={:put ($"rx-byte")}] ; replace with correct iface
+:local wanTx 0
+:if ([:len $wanRx] = 0) do={:set wanRx 0}
+
+# top users snapshot: simple approach - use active hotspot list and dhcp leases to build list
+:local topSnapshot "[]"
+:if ([:len $hsList] > 2) do={
+  :set topSnapshot $hsList
+}
+
+# assemble JSON
+:local json "{\"token\":\"$token\",\"site\":\"$site\",\"router\":\"$routerName\",\"ts\":\"[\" . [/system clock get time] . \"]\",\"dhcp_leases\":$dhcpList,\"hotspot_active\":$hsList,\"top_users_snapshot\":$topSnapshot,\"interfaces\":{\"isp_rx\":$wanRx,\"isp_tx\":$wanTx}}"
+
+# push (simple fetch)
+/tool fetch url=($url) http-method=post http-data=$json keep-result=no
+
+# Note: adapt interface names, use base64 or gzip externally if necessary for large payloads.

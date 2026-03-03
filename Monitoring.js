@@ -505,7 +505,17 @@ function trafficAnalyticsForSite_(ss, cfg, site) {
   const wifi_mbps = mbps(curRow[idx.wifi_rx], curRow[idx.wifi_tx], prevRow[idx.wifi_rx], prevRow[idx.wifi_tx]);
 
   const ISP_MAX = cfgNum_(cfg, "ISP_MAX_MBPS", 20);
-  const isp_pct = (isp_mbps === "" || ISP_MAX <= 0) ? "" : Math.round((Number(isp_mbps) / ISP_MAX) * 100);
+  let isp_pct = "";
+  if (isp_mbps === "" || ISP_MAX <= 0) {
+    isp_pct = "";
+  } else {
+    isp_pct = Math.round((Number(isp_mbps) / ISP_MAX) * 100);
+    // If calculated pct is unreasonably large, cap at 100 and record audit so config can be fixed
+    if (isp_pct > 100) {
+      isp_pct = 100;
+      try { logErr_(ss, 'TRAFFIC', `ISP_MAX_MBPS may be misconfigured for site ${site}`, `isp_mbps=${isp_mbps} ISP_MAX=${ISP_MAX}`); } catch (e) {}
+    }
+  }
 
   const groups = [
     { k: "LAN", v: Number(lan_mbps) || 0 },
@@ -537,6 +547,10 @@ function trafficAnalyticsForSite_(ss, cfg, site) {
         for (let r = 1; r < rawData.length; r++) {
           if (String(rawData[r][ridx.site]) === String(site)) {
             topSnapshot = String(rawData[r][ridx.top5_users] || rawData[r][ridx.queues] || "");
+            // fallback: try to extract from payload_json
+            if (!topSnapshot && rawData[r][ridx.payload_json]) {
+              try { topSnapshot = extractTop5FromPayload_(rawData[r][ridx.payload_json]); } catch (e) { topSnapshot = ""; }
+            }
             break;
           }
         }
@@ -561,6 +575,171 @@ function updateTrend_(ss, cfg, ts, site, isp, lan, unity, store, buk, wifi, ispP
   if (last > keep + 1) {
     sh.deleteRows(keep + 2, last - (keep + 1));
   }
+}
+
+/* ---------- User snapshot ingestion & daily aggregation ---------- */
+
+function ingestUserSnapshot(e) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(8000)) return ContentService.createTextOutput("LOCK_BUSY");
+  let ss = null;
+  try {
+    ss = SpreadsheetApp.openById(SS_ID);
+    ensureAll_(ss);
+    const cfg = getCfg_(ss);
+
+    // Accept postData JSON or parameter.payload
+    let payload = null;
+    try {
+      if (e && e.postData && e.postData.contents) payload = JSON.parse(e.postData.contents);
+      else if (e && e.parameter && e.parameter.payload) payload = JSON.parse(e.parameter.payload);
+      else payload = e && e.parameter ? e.parameter : {};
+    } catch (err) { payload = {} }
+
+    const inToken = String(payload.token || payload.t || "").trim();
+    const t1 = String(cfgStr_(cfg, "TOKEN", "")).trim();
+    const t2 = String(cfgStr_(cfg, "TOKEN_ALT", "")).trim();
+    const knownTokens = [t1, t2].filter(Boolean);
+    if (!inToken || knownTokens.indexOf(inToken) === -1) {
+      logErr_(ss, "AUTH_FAIL", `Invalid token user snapshot`, JSON.stringify(payload).slice(0, 1500));
+      return ContentService.createTextOutput("AUTH_FAIL");
+    }
+
+    const ts = payload.ts ? new Date(payload.ts) : new Date();
+    const site = safeText_(payload.site || cfgStr_(cfg, "SITE", "UNKNOWN"), 64);
+    const router = safeText_(payload.router || "", 64);
+    const users = Array.isArray(payload.hotspot_active) ? payload.hotspot_active : (Array.isArray(payload.top_users) ? payload.top_users : (Array.isArray(payload.top_users_snapshot) ? payload.top_users_snapshot : []));
+    const snapshotInterval = Number(payload.interval_sec || payload.interval || 600);
+
+    const rawSh = ss.getSheetByName(SHEETS.RAW_USER_SNAPSHOTS);
+    const rawVals = rawSh.getDataRange().getValues();
+
+    // Build map of last snapshot by site|ip (latest first because sheet is TOP mode)
+    const lastMap = {};
+    for (let i = 1; i < rawVals.length; i++) {
+      const rsite = String(rawVals[i][1] || rawVals[i][0] || "");
+      const rip = String(rawVals[i][3] || "");
+      const key = `${rsite}|${rip}`;
+      if (!lastMap[key]) lastMap[key] = rawVals[i];
+    }
+
+    const rows = [];
+    const aggUpdates = [];
+    if (Array.isArray(users) && users.length) {
+      users.slice(0, 200).forEach(u => {
+        const ip = safeText_(u.ip || u.address || u.host || "", 64);
+        const mac = safeText_(u.mac || u.hardware || u.hw || "", 64);
+        const host = safeText_(u.host || u.hostname || u.name || "", 128);
+        const rx = safeNum_(u.rx || u.rx_bytes || u.rx_total || 0);
+        const tx = safeNum_(u.tx || u.tx_bytes || u.tx_total || 0);
+        const total = Number(rx || 0) + Number(tx || 0);
+        const iface = safeText_(u.iface || u.iface_name || "", 32);
+        rows.push([ts, site, router, ip, mac, host, rx, tx, total, iface, snapshotInterval, JSON.stringify(u).slice(0, 2000)]);
+
+        // compute delta against lastMap
+        const key = `${site}|${ip}`;
+        const prev = lastMap[key];
+        let delta = null, deltaSec = snapshotInterval;
+        if (prev) {
+          try {
+            const prevTotal = Number(prev[8] || 0);
+            delta = total - prevTotal;
+            const prevTs = prev[0] instanceof Date ? prev[0] : new Date(prev[0]);
+            deltaSec = Math.max(1, (ts - prevTs) / 1000);
+            if (!isFinite(delta) || delta < 0) delta = null; // reset detection
+          } catch (e) { delta = null }
+        }
+
+        aggUpdates.push({date: Utilities.formatDate(ts, Session.getScriptTimeZone(), 'yyyy-MM-dd'), site, ip, mac, host, deltaBytes: delta, deltaSec, iface});
+      });
+    }
+
+    // Insert rows at top in batch
+    if (rows.length) {
+      rawSh.insertRowsBefore(2, rows.length);
+      rawSh.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+      styleSheetHeader_(rawSh);
+    }
+
+    // Apply aggregation updates
+    aggUpdates.forEach(u => {
+      if (!u.ip) return;
+      upsertDailyUserAgg_(ss, cfg, u);
+    });
+
+    return ContentService.createTextOutput("OK");
+  } catch (err) {
+    try { if (!ss) ss = SpreadsheetApp.openById(SS_ID); logErr_(ss, 'INGEST_USER', String(err), JSON.stringify(e || {})); } catch (_) {}
+    return ContentService.createTextOutput('ERROR');
+  } finally { try { lock.releaseLock(); } catch (_) {} }
+}
+
+function upsertDailyUserAgg_(ss, cfg, u) {
+  if (!u || !u.ip) return;
+  const sh = ss.getSheetByName(SHEETS.DAILY_USER_AGG);
+  const v = sh.getDataRange().getValues();
+  const date = String(u.date || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'));
+  // find row for date+site+ip
+  let found = -1;
+  for (let i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === date && String(v[i][1]) === u.site && String(v[i][2]) === u.ip) { found = i + 1; break; }
+  }
+
+  const addBytes = Number(u.deltaBytes || 0);
+  const addSec = Number(u.deltaSec || 0);
+  if (found === -1) {
+    const avg = (addSec > 0 && addBytes > 0) ? Math.round((addBytes * 8 / addSec / 1e6) * 100) / 100 : 0;
+    const mb = Math.round((addBytes / 1024 / 1024) * 100) / 100;
+    sh.appendRow([date, u.site, u.ip, u.mac || '', u.host || '', addBytes, mb, addSec, avg, addBytes < 0 ? 1 : 0, JSON.stringify({[u.iface]: addBytes})]);
+  } else {
+    // update existing
+    const curBytes = Number(v[found - 1][5] || 0);
+    const curSec = Number(v[found - 1][7] || 0);
+    const newBytes = curBytes + (addBytes > 0 ? addBytes : 0);
+    const newSec = curSec + (addSec > 0 ? addSec : 0);
+    const mb = Math.round((newBytes / 1024 / 1024) * 100) / 100;
+    const avg = (newSec > 0 && newBytes > 0) ? Math.round((newBytes * 8 / newSec / 1e6) * 100) / 100 : 0;
+    const resets = Number(v[found - 1][9] || 0) + (addBytes === null ? 1 : 0);
+    const ifaceMap = v[found - 1][10] ? (() => { try { return JSON.parse(String(v[found - 1][10] || '{}')); } catch(e){return {}} })() : {};
+    ifaceMap[u.iface || 'unknown'] = (Number(ifaceMap[u.iface || 'unknown'] || 0) + Math.max(0, addBytes));
+    sh.getRange(found, 6).setValue(newBytes);
+    sh.getRange(found, 7).setValue(mb);
+    sh.getRange(found, 8).setValue(newSec);
+    sh.getRange(found, 9).setValue(avg);
+    sh.getRange(found, 10).setValue(resets);
+    sh.getRange(found, 11).setValue(JSON.stringify(ifaceMap));
+  }
+}
+
+function generateTopUsersReport() {
+  const ss = SpreadsheetApp.openById(SS_ID);
+  ensureAll_(ss);
+  const cfg = getCfg_(ss);
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const sh = ss.getSheetByName(SHEETS.DAILY_USER_AGG);
+  const v = sh.getDataRange().getValues();
+  const rows = [];
+  for (let i = 1; i < v.length; i++) {
+    if (String(v[i][0]) !== today) continue;
+    rows.push({site: v[i][1], ip: v[i][2], mac: v[i][3], host: v[i][4], total_bytes: Number(v[i][5]||0), total_seconds: Number(v[i][7]||0)});
+  }
+  if (!rows.length) return;
+  rows.sort((a,b) => b.total_bytes - a.total_bytes);
+  const top = rows.slice(0, Math.max(5, cfgNum_(cfg, 'TOP_USERS_N', 10)));
+
+  const lines = [];
+  lines.push(`<b>Daily Top Users (${today})</b>`);
+  lines.push('━━━━━━━━━━━━━━━━━━');
+  top.forEach((r, idx) => {
+    const mb = (r.total_bytes/1024/1024).toFixed(2);
+    const avg = (r.total_seconds>0) ? (Math.round((r.total_bytes*8/r.total_seconds/1e6)*100)/100) : 0;
+    lines.push(`${idx+1}. ${escapeHtml_(r.ip)} • ${escapeHtml_(r.mac||'-')} • ${escapeHtml_(r.host||'-')} • ${mb}MB • ${avg} Mbps`);
+  });
+  lines.push('━━━━━━━━━━━━━━━━━━');
+  const msg = lines.join('\n');
+  queueTelegram_(ss, cfg, `Top Users • ${today}`, msg);
+  queueEmail_(ss, cfg, `Top Users ${today}`, msg, true);
+  processOutboxNow();
 }
 
 function trafficUserBreakdownForSite_(ss, cfg, site, queuesSnapshot, isp_mbps) {
