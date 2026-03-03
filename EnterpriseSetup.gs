@@ -21,38 +21,22 @@ function ensureAllSheetsEnterprise() {
   for (let i = 0; i < master.length; i++) {
     const name = master[i];
     try {
-      let sh = ss.getSheetByName(name);
+      const sh = ss.getSheetByName(name);
       const expected = _headerForSheetName(name);
-
       if (!sh) {
-        sh = ss.insertSheet(name);
-        if (expected && expected.length) sh.getRange(1, 1, 1, expected.length).setValues([expected]);
-        styleSheetHeader_(sh);
-        details.push({sheet: name, created: true, headerFixed: !!expected});
-        ok++;
-        Utilities.sleep(200);
+        details.push({sheet: name, exists: false});
         continue;
       }
-
       if (expected && expected.length) {
         const lastRow = sh.getLastRow();
         const existing = sh.getRange(1, 1, 1, expected.length).getValues()[0];
         const same = existing.length === expected.length && existing.every((x, idx) => String(x) === String(expected[idx]));
-        if (!same) {
-          // keep previous header in cache only (no AUDIT sheet)
-          details.push({sheet: name, headerFixed: true, hadData: lastRow > 1});
-          sh.getRange(1, 1, 1, expected.length).setValues([expected]);
-          styleSheetHeader_(sh);
-        } else {
-          details.push({sheet: name, ok: true});
-          ok++;
-        }
+        details.push({sheet: name, exists: true, header_ok: same, hadData: lastRow > 1});
+        if (same) ok++;
       } else {
-        details.push({sheet: name, ok: true});
+        details.push({sheet: name, exists: true});
         ok++;
       }
-
-      Utilities.sleep(120);
     } catch (e) {
       try { logErr_(ss, 'ENSURE_ENTERPRISE', `sheet ${name} failed`, String(e)); } catch (_) {}
       details.push({sheet: name, error: String(e)});
@@ -61,6 +45,20 @@ function ensureAllSheetsEnterprise() {
 
   const summary = `${ok}/${total} sheets OK`;
   return {total: total, ok: ok, details: details, summary: summary};
+}
+
+function createUserMonitorSheet() {
+  const ss = SpreadsheetApp.openById(SS_ID);
+  const name = SHEETS.USER_MONITOR;
+  const header = _headerForSheetName(name) || DEFAULT_HEADERS.USER_MONITOR;
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+  }
+  if (sh.getLastRow() === 0) sh.appendRow(header);
+  sh.getRange(1, 1, 1, header.length).setValues([header]);
+  styleSheetHeader_(sh);
+  return {sheet: name, created: true};
 }
 
 function validateAllHeaders(autoFix) {
@@ -140,22 +138,23 @@ function getSetupStatusReport() {
 // Run enterprise setup once and present a concise UI summary to the user.
 function setupEnterpriseAndShowReport() {
   const ss = SpreadsheetApp.openById(SS_ID);
-  const ui = SpreadsheetApp.getUi();
-  try {
-    ui.alert('Enterprise setup', 'Starting enterprise setup. This will create missing sheets and fix headers.', ui.ButtonSet.OK);
-  } catch (e) {}
-
   const result = ensureAllSheetsEnterprise();
-  const summary = result && result.summary ? result.summary : `${result.ok}/${result.total} sheets OK`;
-  // persist a brief exec log row for traceability
+  // If any required sheets are missing, create USER_MONITOR explicitly.
+  const missing = (result && result.details) ? result.details.filter(d => d.exists === false).map(d=>d.sheet) : [];
+  if (missing.length > 0) {
+    try { createUserMonitorSheet(); } catch (e) { try { logErr_(ss, 'SETUP_ENTERPRISE', 'createUserMonitorSheet failed', String(e)); } catch(_){} }
+  }
+
+  const final = ensureAllSheetsEnterprise();
+  const summary = final && final.summary ? final.summary : `${final.ok}/${final.total} sheets OK`;
+  // persist a brief exec summary into Script Properties instead of creating sheets
   try {
-    const execSh = ss.getSheetByName(SHEETS.EXEC) || ss.insertSheet(SHEETS.EXEC);
-    execSh.appendRow([new Date(), summary, result.ok, result.total]);
+    PropertiesService.getScriptProperties().setProperty('SETUP_ENTERPRISE_LAST', JSON.stringify({ts: new Date().toISOString(), summary: summary, ok: result.ok, total: result.total}));
   } catch (e) {
-    try { logErr_(ss, 'SETUP_ENTERPRISE_LOG', 'failed to write exec log', String(e)); } catch (_) {}
+    try { logErr_(ss, 'SETUP_ENTERPRISE_LOG', 'failed to write script property', String(e)); } catch (_) {}
   }
 
   try { ss.toast(summary, 'Setup Summary', 8); } catch (e) {}
-  try { ui.alert('Setup Complete', summary, ui.ButtonSet.OK); } catch (e) {}
-  return result;
+  try { Logger.log('Enterprise setup: %s', summary); } catch (e) {}
+  return final;
 }

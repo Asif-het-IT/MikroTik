@@ -1,5 +1,10 @@
 function logErr_(ss, module, error, payload) {
-  ss.getSheetByName(SHEETS.ERR).appendRow([new Date(), String(module), String(error), String(payload || "")]);
+  // Avoid writing to a sheet in single-sheet deployment. Log to Apps Script logger instead.
+  try {
+    const msg = `[${module}] ${String(error)} ${String(payload || '')}`;
+    Logger.log(msg);
+    console && console.log ? console.log(msg) : null;
+  } catch (e) {}
 }
 
 function safeText_(s, maxLen) {
