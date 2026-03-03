@@ -1,24 +1,14 @@
 // Enterprise setup helpers moved out of Code.js for clarity.
 // Provides a single-shot, auditable, timeout-safe enterprise setup flow.
 
+// Simplified enterprise setup: single-sheet architecture (USER_MONITOR)
 function _headerForSheetName(sheetName) {
-  for (const key in SHEETS) {
-    if (SHEETS[key] === sheetName) {
-      return DEFAULT_HEADERS[key] || null;
-    }
-  }
-  if (DEFAULT_HEADERS[sheetName]) return DEFAULT_HEADERS[sheetName];
+  if (sheetName === SHEETS.USER_MONITOR) return DEFAULT_HEADERS.USER_MONITOR;
   return null;
 }
 
 function _buildMasterSheetList() {
-  const names = new Set();
-  Object.keys(SHEETS).forEach(k => names.add(SHEETS[k]));
-  Object.keys(DEFAULT_HEADERS).forEach(k => {
-    const mapped = SHEETS[k];
-    if (mapped) names.add(mapped); else names.add(k);
-  });
-  return Array.from(names);
+  return [SHEETS.USER_MONITOR];
 }
 
 function ensureAllSheetsEnterprise() {
@@ -27,7 +17,6 @@ function ensureAllSheetsEnterprise() {
   const total = master.length;
   let ok = 0;
   const details = [];
-  const auditSh = ss.getSheetByName(SHEETS.AUDIT) || ss.insertSheet(SHEETS.AUDIT);
 
   for (let i = 0; i < master.length; i++) {
     const name = master[i];
@@ -41,7 +30,7 @@ function ensureAllSheetsEnterprise() {
         styleSheetHeader_(sh);
         details.push({sheet: name, created: true, headerFixed: !!expected});
         ok++;
-        Utilities.sleep(250);
+        Utilities.sleep(200);
         continue;
       }
 
@@ -50,15 +39,10 @@ function ensureAllSheetsEnterprise() {
         const existing = sh.getRange(1, 1, 1, expected.length).getValues()[0];
         const same = existing.length === expected.length && existing.every((x, idx) => String(x) === String(expected[idx]));
         if (!same) {
-          try {
-            const oldHeaderJson = JSON.stringify(existing);
-            auditSh.appendRow([new Date(), `HEADER_FIX`, name, oldHeaderJson, lastRow > 1 ? 'had-data' : 'empty']);
-          } catch (e) {
-            try { logErr_(ss, 'ENSURE_ENTERPRISE', `audit append failed for ${name}`, String(e)); } catch (_) {}
-          }
+          // keep previous header in cache only (no AUDIT sheet)
+          details.push({sheet: name, headerFixed: true, hadData: lastRow > 1});
           sh.getRange(1, 1, 1, expected.length).setValues([expected]);
           styleSheetHeader_(sh);
-          details.push({sheet: name, headerFixed: true, hadData: lastRow > 1});
         } else {
           details.push({sheet: name, ok: true});
           ok++;
@@ -68,17 +52,14 @@ function ensureAllSheetsEnterprise() {
         ok++;
       }
 
-      Utilities.sleep(200);
+      Utilities.sleep(120);
     } catch (e) {
       try { logErr_(ss, 'ENSURE_ENTERPRISE', `sheet ${name} failed`, String(e)); } catch (_) {}
       details.push({sheet: name, error: String(e)});
     }
   }
 
-  try { setCfgValue_(ss, 'SETUP_ENTERPRISE_DONE', new Date().toISOString()); } catch (e) {}
-
   const summary = `${ok}/${total} sheets OK`;
-  try { auditSh.appendRow([new Date(), 'ENSURE_ENTERPRISE_SUMMARY', summary, JSON.stringify(details)]); } catch (e) {}
   return {total: total, ok: ok, details: details, summary: summary};
 }
 
@@ -87,7 +68,6 @@ function validateAllHeaders(autoFix) {
   const ss = SpreadsheetApp.openById(SS_ID);
   const master = _buildMasterSheetList();
   const results = [];
-  const auditSh = ss.getSheetByName(SHEETS.AUDIT) || ss.insertSheet(SHEETS.AUDIT);
 
   for (let i = 0; i < master.length; i++) {
     const name = master[i];
@@ -109,8 +89,6 @@ function validateAllHeaders(autoFix) {
       } else {
         results.push({sheet: name, exists: true, header_ok: false, existing: existing});
         if (autoFix) {
-          const lastRow = sh.getLastRow();
-          try { auditSh.appendRow([new Date(), 'HEADER_AUTO_FIX', name, JSON.stringify(existing), lastRow > 1 ? 'had-data' : 'empty']); } catch(e){}
           sh.getRange(1, 1, 1, expected.length).setValues([expected]);
           styleSheetHeader_(sh);
         }
@@ -119,7 +97,7 @@ function validateAllHeaders(autoFix) {
       try { logErr_(ss, 'VALIDATE_HEADERS', `validate ${name} failed`, String(e)); } catch (_) {}
       results.push({sheet: name, error: String(e)});
     }
-    Utilities.sleep(120);
+    Utilities.sleep(80);
   }
 
   return results;

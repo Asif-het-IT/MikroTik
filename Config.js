@@ -7,6 +7,7 @@ const SHEETS = {
   LOG_DETAIL: "ROUTER_LOG_DETAILS",
   STATE: "STATE_LATEST",
   TREND: "TRAFFIC_TREND_7D",
+  USER_MONITOR: "USER_MONITOR",
   DASH: "DASHBOARD",
   USER_LOADS: "USER_LOADS",
   AUDIT: "DATA_AUDIT",
@@ -49,6 +50,7 @@ const DEFAULT_HEADERS = {
   TREND: ["ts", "site", "isp_mbps", "lan_mbps", "unity_mbps", "store_mbps", "buk_mbps", "wifi_mbps", "isp_pct"],
   RAW_USER_SNAPSHOTS: ["ts", "site", "router", "ip", "mac", "host", "rx_total", "tx_total", "total_bytes", "iface", "interval_sec", "payload_json"],
   DAILY_USER_AGG: ["date", "site", "ip", "mac", "host", "total_bytes", "total_mb", "total_seconds", "avg_mbps", "resets", "iface_breakdown"],
+  USER_MONITOR: ["timestamp","site","router","ip","mac","hostname","rx_total","tx_total","delta_bytes","delta_mbps","date_key"],
   AUDIT: ["ts", "field_key", "friendly_name", "coverage_pct", "sample_value", "in_state", "collectable_from_router", "note"],
   TG_OUT: ["ts", "title", "chat_id", "message_html", "status", "result", "attempts"],
   EXEC: [
@@ -90,8 +92,12 @@ function getCfg_(ss) {
   const ckey = "NOC_CFG_V8";
   const cached = cache.get(ckey);
   if (cached) return JSON.parse(cached);
-
   const sh = ss.getSheetByName(SHEETS.CFG);
+  if (!sh) {
+    // config sheet not present; return empty defaults map
+    cache.put(ckey, JSON.stringify({}), 60);
+    return {};
+  }
   const v = sh.getDataRange().getValues();
   const map = {};
   for (let i = 1; i < v.length; i++) {
@@ -139,7 +145,6 @@ function cfgFmt_(cfg) {
 
 function installTriggers() {
   const ss = SpreadsheetApp.openById(SS_ID);
-  ensureAll_(ss);
   const cfg = getCfg_(ss);
 
   const dashMin = normalizeEveryMinutes_(cfgNum_(cfg, "DASH_REFRESH_MIN", 5));
