@@ -8,9 +8,9 @@ function ingest_(e) {
     ensureAll_(ss);
 
     const cfg = getCfg_(ss);
-    const p = (e && e.parameter) ? e.parameter : {};
+    const p = collectIngestParams_(e);
 
-    const inToken = String(p.token || "").trim();
+    const inToken = String(p.token || p.t || p.key || "").trim();
     const t1 = String(cfgStr_(cfg, "TOKEN", "")).trim();
     const t2 = String(cfgStr_(cfg, "TOKEN_ALT", "")).trim();
     const knownTokens = [
@@ -125,6 +125,54 @@ function ingest_(e) {
     return ContentService.createTextOutput("ERROR");
   } finally {
     try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+function collectIngestParams_(e) {
+  const out = {};
+
+  const put = (k, v) => {
+    const key = String(k || "").trim();
+    if (!key) return;
+    if (out[key] === undefined || out[key] === null || String(out[key]).trim() === "") {
+      out[key] = v;
+    }
+  };
+
+  const parseForm = (raw) => {
+    if (!raw) return;
+    const text = String(raw);
+    if (!text) return;
+    text.split("&").forEach(part => {
+      if (!part) return;
+      const eq = part.indexOf("=");
+      const keyRaw = eq >= 0 ? part.slice(0, eq) : part;
+      const valRaw = eq >= 0 ? part.slice(eq + 1) : "";
+      const key = decodeParam_(keyRaw.replace(/\+/g, " "));
+      const val = decodeParam_(valRaw.replace(/\+/g, " "));
+      put(key, val);
+    });
+  };
+
+  if (e && e.parameter) {
+    Object.keys(e.parameter).forEach(k => put(k, e.parameter[k]));
+  }
+
+  if (e && e.queryString) parseForm(e.queryString);
+
+  const postRaw = e && e.postData && typeof e.postData.contents === "string"
+    ? e.postData.contents
+    : "";
+  if (postRaw) parseForm(postRaw);
+
+  return out;
+}
+
+function decodeParam_(s) {
+  try {
+    return decodeURIComponent(String(s || ""));
+  } catch (_) {
+    return String(s || "");
   }
 }
 
