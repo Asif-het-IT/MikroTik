@@ -4,7 +4,7 @@
 /system script remove [find where name~"MTK_|HET_"]
 /system script environment remove [find where name~"MTK|HET"]
 
-/system script add name=MTK_CONFIG policy=read,write,test source=":global MTKURL \"https://script.google.com/macros/s/AKfycbx9-NRt1Cdj2kR4nijgH2aaGjfLHrxdMk6CgAcNV0DG3yhy82iDPBlJGgrJ5D_c_yn6/exec\"; :global MTKURL_ALT \"\"; :global MTKTOKEN \"MONITOR_TOKEN_2026\"; :global MTKSITE \"KANO\"; :global MTKWANIF \"ether1\"; :global MTKLANIF \"bridge1\"; :global MTKLASTSIG \"\";"
+/system script add name=MTK_CONFIG policy=read,write,test source=":global MTKURL \"https://script.google.com/macros/s/AKfycbx9-NRt1Cdj2kR4nijgH2aaGjfLHrxdMk6CgAcNV0DG3yhy82iDPBlJGgrJ5D_c_yn6/exec\"; :global MTKURL_ALT \"https://script.googleusercontent.com/macros/echo?user_content_key=AY5xjrTFcdC_3nmr4SBUm39MQZ71v0oMeUVRh2JCAqLoIx3Qe6zBvfWlwQiJMbrMttYlp11GfaPKuMgIg7ZCbVRACgaEsWXc4Ujc4hLFjC6vEl7f30lSFfyu7BXmpgH5YcMoZiiNeP6bEmAcCpZccLK0p47_CI5FkLeB-I5364e_Wb70NrlmoiBlKeV1PPiDVdmdV90Qm0LISlAsN_JbLAvEt5bwmd5gSgBhB3OPKEQnzoc8SI2YYSV6R9k9lupJmJU5xw9qoHgn-gUBvupeFhv0SXIAb9n2Pw&lib=MUG_rLRLoiM7kb_pWjzsTlTi7gexMXnUe\"; :global MTKTOKEN \"MONITOR_TOKEN_2026\"; :global MTKSITE \"KANO\"; :global MTKWANIF \"ether1\"; :global MTKLANIF \"bridge1\"; :global MTKLASTSIG \"\";"
 
 /system script add name=MTK_SET_ALT_URL policy=read,write,test source=":global MTKURL_ALT; :put \"Paste full googleusercontent URL after this command:\"; :put \"  :global MTKURL_ALT \\\"https://script.googleusercontent.com/macros/echo?...\\\"\"; :put \"Current MTKURL_ALT:\"; :put \$MTKURL_ALT;"
 
