@@ -1,0 +1,606 @@
+<!doctype html>
+<html>
+  <? var snap = model || {}; ?>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title><?= snap.title || 'het' ?></title>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+      :root {
+        --ink: #173f35;
+        --panel: rgba(255,255,255,.86);
+        --line: #d8e3d2;
+        --accent: #b7d7a8;
+        --soft: #eef5ea;
+        --warn: #fce5cd;
+        --danger: #f4cccc;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top right, rgba(183,215,168,.55), transparent 28%),
+          linear-gradient(160deg, #f4f8f0, #dfead9 58%, #f7fbf5);
+      }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 18px 40px; }
+      .hero, .panel {
+        background: var(--panel);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(216,227,210,.85);
+        border-radius: 22px;
+        box-shadow: 0 18px 50px rgba(23,63,53,.10);
+      }
+      .hero { padding: 24px; margin-bottom: 20px; }
+      .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #4f7c5b; }
+      h1 { margin: 8px 0 10px; font-size: clamp(34px, 5vw, 56px); line-height: .95; }
+      .sub { max-width: 760px; font-size: 15px; line-height: 1.7; color: #31594d; }
+      .meta { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 12px; }
+      .hero-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+      .control-menu { position: relative; }
+      .control-btn {
+        border: 1px solid #2f5f4f;
+        background: #173f35;
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .control-btn:hover { background:#1d4b3e; }
+      .control-list {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 8px);
+        min-width: 220px;
+        background: #ffffff;
+        border: 1px solid #d7dde5;
+        border-radius: 10px;
+        box-shadow: 0 12px 30px rgba(0,0,0,.16);
+        overflow: hidden;
+        display: none;
+        z-index: 2000;
+      }
+      .control-item {
+        width: 100%;
+        border: 0;
+        background: #fff;
+        color: #1f3f35;
+        text-align: left;
+        padding: 10px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .control-item:hover { background: #eef5ea; }
+      .chip {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: #f7fbf5;
+        border: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .content-grid {
+        display: grid;
+        grid-template-columns: 1.05fr 1.45fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+        align-items: stretch;
+      }
+      .panel { padding: 18px; }
+      .kpi-grid .panel,
+      .content-grid .panel { height: 100%; }
+      .label { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #5f7b71; }
+      .value { margin-top: 8px; font-size: 28px; font-weight: 700; }
+      .hint { margin-top: 10px; color: #4b6a60; font-size: 14px; }
+      .good { background: linear-gradient(135deg, #f6fbf2, #e2f0d9); }
+      .warn { background: linear-gradient(135deg, #fff9ee, #fce5cd); }
+      .bad { background: linear-gradient(135deg, #fff4f4, #f4cccc); }
+      .summary-card .summary-text { margin-top: 8px; font-size: 16px; line-height: 1.55; font-weight: 600; color: #21473e; }
+      .alerts-card table,
+      .users-card table { margin-top: 6px; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+      th { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #5f7b71; }
+      .sev { font-weight: 700; }
+      .footer { margin-top: 18px; font-size: 13px; color: #5f7b71; }
+      a { color: #1c5d4c; }
+      .capture-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(8, 22, 34, 0.72);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      .capture-box {
+        width: min(460px, 92vw);
+        background: #fff;
+        border-radius: 14px;
+        border: 1px solid #d7dde5;
+        box-shadow: 0 18px 50px rgba(0,0,0,.25);
+        padding: 20px;
+      }
+      .capture-title { font-size: 20px; font-weight: 700; color:#173f35; margin-bottom: 6px; }
+      .capture-sub { color:#4b6a60; font-size:14px; }
+      .progress-dots { margin-top: 14px; display:flex; gap:8px; }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        border: 1px solid #8bb29f;
+        background: #fff;
+      }
+      .dot.active { background:#173f35; }
+      .capture-note { margin-top: 10px; font-size: 12px; color:#607d73; }
+
+      .preview-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(5, 16, 26, 0.86);
+        display: none;
+        z-index: 10000;
+        padding: 20px;
+        overflow: auto;
+      }
+      .preview-card {
+        max-width: 1080px;
+        margin: 0 auto;
+        background: #f8fbff;
+        border: 1px solid #d9e5ef;
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .preview-head {
+        display:flex;
+        justify-content: space-between;
+        align-items:center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .preview-title { font-size: 20px; color:#11324a; font-weight: 700; }
+      .preview-mode {
+        margin-top: 4px;
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #e8f3ff;
+        color: #0b4a73;
+        border: 1px solid #bfdbfe;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .preview-actions { display:flex; gap:8px; flex-wrap: wrap; }
+      .act-btn {
+        border: 1px solid #2b5a4a;
+        background: #173f35;
+        color: #fff;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .act-btn.alt { background:#0b4a73; border-color:#1c5f8b; }
+      .act-btn.gray { background:#475569; border-color:#607082; }
+      .preview-image-wrap {
+        margin-top: 12px;
+        border: 1px solid #d4dee8;
+        background: #fff;
+        border-radius: 10px;
+        overflow: auto;
+        max-height: 78vh;
+      }
+      .preview-image-wrap img { width: 100%; display:block; }
+      @media (max-width: 1120px) {
+        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .content-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .alerts-card { grid-column: span 2; }
+      }
+      @media (max-width: 860px) {
+        .kpi-grid,
+        .content-grid { grid-template-columns: 1fr; }
+        .alerts-card { grid-column: auto; }
+        .hero-top { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <div class="eyebrow">monitoring center</div>
+            <h1><?= snap.title || 'het' ?></h1>
+          </div>
+          <div class="control-menu">
+            <button id="controlMenuBtn" type="button" class="control-btn">het Control</button>
+            <div id="controlMenuList" class="control-list">
+              <button id="captureDashboardFastBtn" type="button" class="control-item">Capture Dashboard (Fast)</button>
+              <button id="captureDashboardHQBtn" type="button" class="control-item">Capture Dashboard (High Quality)</button>
+              <button id="captureViewBtn" type="button" class="control-item">Capture Current View</button>
+            </div>
+          </div>
+        </div>
+        <div class="sub">
+          Live operations snapshot for <?= snap.site || 'KANO' ?>. This view gives the team current status, recent alerts, and top usage at a glance.
+        </div>
+        <div class="meta">
+          <div class="chip">Date: <?= snap.dateText || 'n/a' ?></div>
+          <div class="chip">Time: <?= snap.timeText || 'n/a' ?></div>
+          <div class="chip">Router: <?= snap.router || 'UNKNOWN' ?></div>
+          <div class="chip">Last Refresh: <?= snap.updatedAt || 'n/a' ?></div>
+        </div>
+      </section>
+
+      <section class="kpi-grid">
+        <div class="panel <?= (snap.live && (snap.live.status === 'DOWN' || snap.live.status === 'NO DATA')) ? 'bad' : ((snap.live && snap.live.freshness === 'WARN') ? 'warn' : 'good') ?>">
+          <div class="label">Router Status</div>
+          <div class="value"><?= snap.live && snap.live.status ? snap.live.status : 'NO DATA' ?></div>
+          <div class="hint"><?= snap.live && snap.live.message ? snap.live.message : 'No live update received yet.' ?></div>
+        </div>
+        <? var mv = snap.mobileVpn || {}; ?>
+        <div class="panel <?= (mv.status === 'DOWN') ? 'bad' : ((mv.health === 'WARNING') ? 'warn' : 'good') ?>">
+          <div class="label">Mobile VPN Status</div>
+          <div class="value"><?= mv.status || 'UNKNOWN' ?></div>
+          <div class="hint">Health <?= mv.health || 'UNKNOWN' ?> | Active <?= mv.activeCount || 0 ?> | Failed today <?= mv.failedToday || 0 ?></div>
+        </div>
+        <div class="panel warn">
+          <div class="label">CPU and Memory</div>
+          <div class="value"><?= snap.live ? snap.live.cpu : 0 ?>% / <?= snap.live ? snap.live.memory : 0 ?>%</div>
+          <div class="hint">IPsec <?= snap.live && snap.live.ipsec ? snap.live.ipsec : 'UNKNOWN' ?> | Last Seen <?= snap.live && snap.live.lastSeen ? snap.live.lastSeen : 'n/a' ?></div>
+        </div>
+        <div class="panel">
+          <div class="label">DHCP Users</div>
+          <div class="value"><?= snap.users ? snap.users.active : 0 ?></div>
+          <div class="hint">Latest DHCP snapshot | Public IP <?= snap.live && snap.live.publicIp ? snap.live.publicIp : 'n/a' ?> | ISP <?= snap.live && snap.live.isp ? snap.live.isp : 'n/a' ?></div>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <div class="panel">
+          <div class="label">Mobile VPN Service</div>
+          <table>
+            <tbody>
+              <tr><th>Status</th><td><?= mv.status || 'UNKNOWN' ?></td></tr>
+              <tr><th>Health</th><td><?= mv.health || 'UNKNOWN' ?> (Green=Working, Amber=Warning, Red=Down)</td></tr>
+              <tr><th>L2TP Server</th><td><?= mv.l2tpServer || 'UNKNOWN' ?></td></tr>
+              <tr><th>Active Users</th><td><?= mv.activeCount || 0 ?></td></tr>
+              <tr><th>Connected Users</th><td><?= (mv.connectedUsers && mv.connectedUsers.length) ? mv.connectedUsers.join(', ') : '-' ?></td></tr>
+              <tr><th>Assigned VPN IPs</th><td><?= (mv.assignedIps && mv.assignedIps.length) ? mv.assignedIps.join(', ') : '-' ?></td></tr>
+              <tr><th>Source Public IPs</th><td><?= (mv.sourceIps && mv.sourceIps.length) ? mv.sourceIps.join(', ') : '-' ?></td></tr>
+              <tr><th>Last Event</th><td><?= mv.lastEvent || 'none' ?></td></tr>
+              <tr><th>Last Connection Time</th><td><?= mv.lastConnectionTime || 'n/a' ?></td></tr>
+              <tr><th>Failed Login Count Today</th><td><?= mv.failedToday || 0 ?></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel summary-card">
+          <div class="label">Smart Summary</div>
+          <div class="summary-text"><?= snap.smartSummary && snap.smartSummary.summary ? snap.smartSummary.summary : 'Smart summary is not available yet.' ?></div>
+          <div class="hint">Pending Commands <?= snap.commandsPending || 0 ?> | Last Update <?= snap.smartSummary && snap.smartSummary.updatedAt ? snap.smartSummary.updatedAt : 'n/a' ?></div>
+        </div>
+
+        <div class="panel alerts-card">
+          <div class="label">Recent Alerts</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Severity</th>
+                <th>Type</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              <? var alertRows = (snap.alerts && snap.alerts.recent && snap.alerts.recent.length) ? snap.alerts.recent : [{time:'n/a', severity:'INFO', type:'NO_ALERTS', message:'No recent alerts recorded.'}]; ?>
+              <? for (var i = 0; i < alertRows.length; i++) { ?>
+                <tr>
+                  <td><?= alertRows[i].time ?></td>
+                  <td class="sev"><?= alertRows[i].severity ?></td>
+                  <td><?= alertRows[i].type ?></td>
+                  <td><?= alertRows[i].message ?></td>
+                </tr>
+              <? } ?>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel users-card">
+          <div class="label">Top Users</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>IP</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <? var usageRows = (snap.topUsage && snap.topUsage.length) ? snap.topUsage : [{ip:'n/a', total:0}]; ?>
+              <? for (var j = 0; j < usageRows.length; j++) { ?>
+                <tr>
+                  <td><?= j + 1 ?></td>
+                  <td><?= usageRows[j].ip ?></td>
+                  <td><?= usageRows[j].total ?></td>
+                </tr>
+              <? } ?>
+            </tbody>
+          </table>
+          <div class="footer">
+            For spreadsheet view, open the production sheet:
+            <a target="_blank" href="<?= snap.sheetUrl || '#' ?>">Open HET sheet</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel logs-card" style="margin-bottom:16px;">
+        <div class="label">Recent Router Logs</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Router Time</th>
+              <th>Severity</th>
+              <th>Topics</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            <? var logRows = (snap.routerLogs && snap.routerLogs.length) ? snap.routerLogs : [{time:'n/a', logTime:'n/a', severity:'INFO', topics:'-', message:'No router logs available yet.'}]; ?>
+            <? for (var k = 0; k < logRows.length; k++) { ?>
+              <tr>
+                <td><?= logRows[k].time ?></td>
+                <td><?= logRows[k].logTime ?></td>
+                <td class="sev"><?= logRows[k].severity ?></td>
+                <td><?= logRows[k].topics ?></td>
+                <td><?= logRows[k].message ?></td>
+              </tr>
+            <? } ?>
+          </tbody>
+        </table>
+      </section>
+
+    </div>
+
+    <div id="captureOverlay" class="capture-overlay" data-html2canvas-ignore="true">
+      <div class="capture-box">
+        <div class="capture-title">Dashboard Capture</div>
+        <div class="capture-sub" id="captureStatusText">Screen capture in progress...</div>
+        <div class="progress-dots" id="captureDots">
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        <div class="capture-note" id="captureNote">Preparing dashboard frames...</div>
+      </div>
+    </div>
+
+    <div id="previewOverlay" class="preview-overlay" data-html2canvas-ignore="true">
+      <div class="preview-card">
+        <div class="preview-head">
+          <div>
+            <div class="preview-title">Dashboard Screenshot Preview</div>
+            <div id="previewMode" class="preview-mode">Mode: n/a</div>
+          </div>
+          <div class="preview-actions">
+            <button id="downloadPngBtn" type="button" class="act-btn">Download PNG</button>
+            <button id="copyImageBtn" type="button" class="act-btn alt">Copy Image</button>
+            <button id="downloadPdfBtn" type="button" class="act-btn alt">Download PDF</button>
+            <button id="closePreviewBtn" type="button" class="act-btn gray">Close</button>
+          </div>
+        </div>
+        <div class="preview-image-wrap">
+          <img id="previewImage" alt="Dashboard screenshot preview" />
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        var controlMenuBtn = document.getElementById('controlMenuBtn');
+        var controlMenuList = document.getElementById('controlMenuList');
+        var captureFastBtn = document.getElementById('captureDashboardFastBtn');
+        var captureHqBtn = document.getElementById('captureDashboardHQBtn');
+        var captureViewBtn = document.getElementById('captureViewBtn');
+        var captureOverlay = document.getElementById('captureOverlay');
+        var captureStatusText = document.getElementById('captureStatusText');
+        var captureNote = document.getElementById('captureNote');
+        var dots = Array.prototype.slice.call(document.querySelectorAll('#captureDots .dot'));
+        var previewOverlay = document.getElementById('previewOverlay');
+        var previewImage = document.getElementById('previewImage');
+        var downloadPngBtn = document.getElementById('downloadPngBtn');
+        var copyImageBtn = document.getElementById('copyImageBtn');
+        var downloadPdfBtn = document.getElementById('downloadPdfBtn');
+        var closePreviewBtn = document.getElementById('closePreviewBtn');
+        var previewMode = document.getElementById('previewMode');
+        var captureTarget = document.querySelector('.wrap');
+
+        var finalCanvas = null;
+        var finalDataUrl = '';
+
+        function getDashboardFileName(ext) {
+          var site = <?= JSON.stringify(snap.site || 'KANO') ?>;
+          var router = <?= JSON.stringify(snap.router || 'UNKNOWN') ?>;
+          var now = new Date();
+          var y = now.getFullYear();
+          var m = String(now.getMonth() + 1).padStart(2, '0');
+          var d = String(now.getDate()).padStart(2, '0');
+          var hh = String(now.getHours()).padStart(2, '0');
+          var mm = String(now.getMinutes()).padStart(2, '0');
+          return ['het', site, router, y + m + d, hh + mm].join('_') + '.' + ext;
+        }
+
+        function showCapture(status, note) {
+          captureStatusText.textContent = status;
+          captureNote.textContent = note || '';
+          captureOverlay.style.display = 'flex';
+        }
+
+        function hideCapture() {
+          captureOverlay.style.display = 'none';
+        }
+
+        function setProgress(step, total) {
+          var activeCount = Math.max(1, Math.round((step / Math.max(1, total)) * dots.length));
+          dots.forEach(function(dot, i) {
+            dot.classList.toggle('active', i < activeCount);
+          });
+        }
+
+        function delay(ms) {
+          return new Promise(function(resolve) { setTimeout(resolve, ms); });
+        }
+
+        async function captureElementFull(scaleOverride) {
+          if (!captureTarget) throw new Error('Dashboard container not found.');
+          var scale = scaleOverride || Math.min(2, window.devicePixelRatio || 1.5);
+          return html2canvas(captureTarget, {
+            backgroundColor: '#f3f6fb',
+            scale: scale,
+            useCORS: true,
+            scrollX: 0,
+            scrollY: 0,
+            ignoreElements: function(el) {
+              return el && el.hasAttribute && el.hasAttribute('data-html2canvas-ignore');
+            }
+          });
+        }
+
+        function showPreview(canvas, modeLabel) {
+          finalCanvas = canvas;
+          finalDataUrl = canvas.toDataURL('image/png');
+          previewImage.src = finalDataUrl;
+          previewMode.textContent = 'Mode: ' + (modeLabel || 'n/a');
+          previewOverlay.style.display = 'block';
+        }
+
+        function downloadScreenshot() {
+          if (!finalDataUrl) return;
+          var a = document.createElement('a');
+          a.href = finalDataUrl;
+          a.download = getDashboardFileName('png');
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+
+        async function copyScreenshot() {
+          if (!finalCanvas) return;
+          try {
+            var blob = await new Promise(function(resolve) { finalCanvas.toBlob(resolve, 'image/png'); });
+            if (!blob || !navigator.clipboard || !window.ClipboardItem) {
+              alert('Copy is not supported in this browser.');
+              return;
+            }
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            alert('Screenshot copied to clipboard.');
+          } catch (err) {
+            alert('Copy failed. Please use Download PNG.');
+          }
+        }
+
+        function downloadPdfFallback() {
+          if (!finalDataUrl) return;
+          var w = window.open('', '_blank');
+          if (!w) {
+            alert('Popup blocked. Please allow popups and retry.');
+            return;
+          }
+          w.document.write('<!doctype html><html><head><title>Dashboard PDF</title><style>body{margin:0}img{max-width:100%;display:block;margin:0 auto}</style></head><body><img src="' + finalDataUrl + '"></body></html>');
+          w.document.close();
+          w.focus();
+          setTimeout(function() { w.print(); }, 300);
+        }
+
+        async function captureDashboard(mode) {
+          var isHq = mode === 'hq';
+          var scale = isHq ? 2.2 : 1.25;
+          var modeLabel = isHq ? 'High Quality' : 'Fast';
+          captureFastBtn.disabled = true;
+          captureHqBtn.disabled = true;
+          controlMenuList.style.display = 'none';
+          try {
+            showCapture('Screen capture in progress...', isHq ? 'Preparing high quality capture...' : 'Preparing fast capture...');
+            setProgress(2, 8);
+            await delay(120);
+            setProgress(5, 8);
+            showCapture('Screen capture in progress...', 'Capturing dashboard area...');
+            await delay(120);
+
+            var merged = await captureElementFull(scale);
+            setProgress(8, 8);
+            showCapture('Screen capture in progress...', 'Finalizing preview...');
+            await delay(120);
+            hideCapture();
+            showPreview(merged, modeLabel);
+          } catch (err) {
+            hideCapture();
+            alert('Capture failed. Please retry.');
+          } finally {
+            captureFastBtn.disabled = false;
+            captureHqBtn.disabled = false;
+          }
+        }
+
+        async function captureCurrentView() {
+          controlMenuList.style.display = 'none';
+          captureViewBtn.disabled = true;
+          try {
+            showCapture('Screen capture in progress...', 'Capturing current view...');
+            setProgress(4, 8);
+            await delay(120);
+            var sy = window.scrollY || window.pageYOffset || 0;
+            var canvas = await html2canvas(document.body, {
+              backgroundColor: '#f3f6fb',
+              scale: Math.min(2, window.devicePixelRatio || 1.5),
+              useCORS: true,
+              windowWidth: window.innerWidth,
+              windowHeight: window.innerHeight,
+              scrollX: 0,
+              scrollY: sy,
+              ignoreElements: function(el) {
+                return el && el.hasAttribute && el.hasAttribute('data-html2canvas-ignore');
+              }
+            });
+            hideCapture();
+            showPreview(canvas, 'Current View');
+          } catch (err) {
+            hideCapture();
+            alert('Capture failed. Please retry.');
+          } finally {
+            captureViewBtn.disabled = false;
+          }
+        }
+
+        controlMenuBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          controlMenuList.style.display = controlMenuList.style.display === 'block' ? 'none' : 'block';
+        });
+        document.addEventListener('click', function(e) {
+          if (!controlMenuList.contains(e.target) && e.target !== controlMenuBtn) {
+            controlMenuList.style.display = 'none';
+          }
+        });
+
+        captureFastBtn.addEventListener('click', function() { captureDashboard('fast'); });
+        captureHqBtn.addEventListener('click', function() { captureDashboard('hq'); });
+        captureViewBtn.addEventListener('click', captureCurrentView);
+        downloadPngBtn.addEventListener('click', downloadScreenshot);
+        copyImageBtn.addEventListener('click', copyScreenshot);
+        downloadPdfBtn.addEventListener('click', downloadPdfFallback);
+        closePreviewBtn.addEventListener('click', function() {
+          previewOverlay.style.display = 'none';
+        });
+      })();
+    </script>
+  </body>
+</html>

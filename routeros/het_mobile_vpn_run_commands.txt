@@ -1,0 +1,54 @@
+# KANO Mobile VPN monitor deploy commands (RouterOS 6.49.x)
+
+# 0) Confirm file exists on router
+/file print where name="het_mobile_vpn_monitor_install.rsc"
+
+# If not found, upload latest file again first.
+
+# 0.1) Cleanup any invalid/old Mobile VPN script objects before import
+/system scheduler remove [find name="het_mobile_vpn_monitor"]
+/system script remove [find name="het_MVPN_INIT"]
+/system script remove [find name="het_MVPN_PUSH"]
+
+# 1) Ensure base config + transport already installed
+/system script run het_CONFIG
+
+# 2) Import Mobile VPN monitor installer (after uploading .rsc file to router)
+/import file-name=het_mobile_vpn_monitor_install.rsc
+
+# 3) Optional: run one cycle immediately
+/system script run het_MVPN_PUSH
+
+# 4) Verify scheduler and scripts
+/system scheduler print where name="het_mobile_vpn_monitor"
+/system script print where name~"het_MVPN"
+
+# 4.2) Enable Mobile VPN scheduler if flagged X (disabled)
+/system scheduler enable [find name="het_mobile_vpn_monitor"]
+/system scheduler print where name="het_mobile_vpn_monitor"
+
+# 4.2b) If still X, force set disabled=no and verify boolean value
+/system scheduler set [find name="het_mobile_vpn_monitor"] disabled=no
+:put ("MVPN scheduler disabled=" . [/system scheduler get [find name="het_mobile_vpn_monitor"] disabled])
+
+# 4.2c) If still disabled=true, recreate scheduler once
+/system scheduler remove [find name="het_mobile_vpn_monitor"]
+/system scheduler add name="het_mobile_vpn_monitor" start-time=startup interval=1m on-event="/system script run het_MVPN_PUSH" policy=read,write,test,policy disabled=no
+:put ("MVPN scheduler disabled after recreate=" . [/system scheduler get [find name="het_mobile_vpn_monitor"] disabled])
+
+# 4.3) Script flags must NOT show I (invalid)
+/system script print without-paging where name~"het_MVPN"
+
+# 4.1) Verify global variable (underscore-free)
+:global MVPNTRACKEDUSERS
+:put ("MVPNTRACKEDUSERS=" . $MVPNTRACKEDUSERS)
+
+# 5) Check logs for monitor activity
+/log print where message~"het mobile vpn"
+
+# 6) If needed, tune tracked users (comma-separated)
+:global MVPNTRACKEDUSERS "asif,het2,het3,het4"
+
+# 7) Manual test auth_fail push (optional)
+# NOTE: Google Sheet Mobile_VPN_* tabs appear only after latest Apps Script Web App redeploy.
+

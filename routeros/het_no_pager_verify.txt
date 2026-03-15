@@ -1,0 +1,13 @@
+# press q once if pager is open before running below
+/system scheduler disable [find name~"het_"]
+/system script run het_CONFIG
+:time {/system script run het_PUSH_LIVE}
+:time {/system script run het_VPN_CHECK}
+:global SENDOK
+:global SENDDATA
+:put ("SENDOK=" . $SENDOK . " SENDDATA_LEN=" . [:len $SENDDATA])
+/system script job print without-paging
+/log print without-paging where topics~"error"
+/log print without-paging where message~"het_"
+/system scheduler enable [find name~"het_"]
+/system scheduler print without-paging where name~"het_"

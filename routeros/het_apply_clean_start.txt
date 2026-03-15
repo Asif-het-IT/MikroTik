@@ -1,0 +1,15 @@
+/system scheduler remove [find name~"het_"]
+/system script job remove [find where script~"het_"]
+/system script remove [find name~"het_"]
+/file remove [find name~"het_"]
+/import file-name=het_config_install.rsc
+/import file-name=het_transport_install.rsc
+/import file-name=het_telemetry_install.rsc
+/import file-name=het_schedulers_install.rsc
+/system scheduler print detail where name~"het_"
+/system script print where name~"het_(CONFIG|HTTP_SEND|PUSH_LIVE|VPN_CHECK)"
+/system script run het_CONFIG
+:time {/system script run het_PUSH_LIVE}
+:time {/system script run het_VPN_CHECK}
+/log print where topics~"error"
+/log print where message~"het_"

@@ -1,0 +1,18 @@
+.env
+.env.*
+
+# Local SSH keys / helper scripts
+ai_agent_key
+ai_agent_key.pub
+ai_agent_key_nopass
+derived_ai_agent_key.pub
+PRIVATE_ai_agent_key
+PRIVATE _ai_agent_key
+Public_ai_agent_key.pub
+askpass.cmd
+
+# VS Code local settings
+.vscode/
+
+# Wrangler local state
+.wrangler/

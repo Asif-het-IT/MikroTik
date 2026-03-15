@@ -1,0 +1,107 @@
+# HET Deep Transport Fix (RouterOS 6.49.x) - Pager-safe edition
+# IMPORTANT:
+# 1) Run ONE block at a time.
+# 2) After each command, wait until prompt returns:
+#    [asif@AMBARIYYA GLOBAL] >
+# 3) If you see "status: connecting/requesting" then WAIT. Do not paste next line.
+
+# BLOCK 0 - Emergency recovery (NO multiline paste)
+# Use this first if terminal got stuck in pager or script paste broke.
+# Run exactly line by line.
+:quit
+/system script job remove [find where script~"het_"]
+:global APIURL "https://mikrotik-monitor-proxy.hetgraphic17.workers.dev"
+:global BACKUPURL ""
+:global TOKEN "MONITOR_TOKEN_2026"
+:global SITE "KANO"
+:global ROUTER "AMBARIYYA_GLOBAL"
+:global SENDDATA "token=MONITOR_TOKEN_2026&type=test&site=KANO&router=AMBARIYYA_GLOBAL"
+
+# Direct primary endpoint test
+/tool fetch url=$APIURL http-method=post http-data=$SENDDATA http-header-field="Content-Type: application/x-www-form-urlencoded" check-certificate=no duration=8s output=none
+:put "PRIMARY_DIRECT_OK"
+
+# Backup endpoint is intentionally disabled on ROS 6.49 because Apps Script URL returns redirect.
+# If primary direct works, continue with BLOCK D/E/F only.
+
+# BLOCK A - quick checks
+/system clock print
+/ip dns print
+/ip route print where dst-address="0.0.0.0/0"
+
+# BLOCK B - DNS resolve checks
+:put ("RESOLVE worker=" . [:resolve "mikrotik-monitor-proxy.hetgraphic17.workers.dev"])
+:put ("RESOLVE script=" . [:resolve "script.google.com"])
+
+# BLOCK C - HTTPS transport checks (wait for prompt after each line)
+/tool fetch url="https://mikrotik-monitor-proxy.hetgraphic17.workers.dev" check-certificate=no output=none
+:put "FETCH worker done"
+/tool fetch url="https://script.google.com" check-certificate=no output=none
+:put "FETCH script done"
+
+# BLOCK D - re-apply het_CONFIG fully (this fixes the broken paste state)
+/system script set [find name="het_CONFIG"] source={
+  :global APIURL "https://mikrotik-monitor-proxy.hetgraphic17.workers.dev";
+  :global BACKUPURL "";
+  :global TOKEN "MONITOR_TOKEN_2026";
+  :global SITE "KANO";
+  :global ROUTER "AMBARIYYA_GLOBAL";
+  :global WANIF "ether1";
+  :global VPNHOST "vpn.hetdubai.com";
+  :if ([:typeof $SENDOK] = "nothing") do={ :global SENDOK 0; }
+  :if ([:typeof $SENDDATA] = "nothing") do={ :global SENDDATA ""; }
+  :log info "het_CONFIG_LOADED";
+}
+
+# BLOCK E - re-apply het_HTTP_SEND fully
+/system script set [find name="het_HTTP_SEND"] source={
+  :global APIURL;
+  :global BACKUPURL;
+  :global SENDDATA;
+  :global SENDOK;
+  :local H "Content-Type: application/x-www-form-urlencoded";
+  :if ([:len $APIURL] = 0) do={ /system script run het_CONFIG; }
+  :set SENDOK 0;
+  :local payload $SENDDATA;
+  :if ([:len $payload] = 0) do={ :log error "het_HTTP_SEND_DATA_EMPTY"; :return; }
+  :do {
+    /tool fetch url=$APIURL http-method=post http-data=$payload http-header-field=$H check-certificate=no duration=8s output=none;
+    :set SENDOK 1;
+    :log info "het_HTTP_SEND_PRIMARY_OK";
+  } on-error={
+    :set SENDOK 0;
+    :log warning "het_HTTP_SEND_PRIMARY_FAIL";
+  }
+  :if (($SENDOK != 1) and ([:len $BACKUPURL] > 0)) do={
+    :do {
+      /tool fetch url=$BACKUPURL http-method=post http-data=$payload http-header-field=$H check-certificate=no duration=10s output=none;
+      :set SENDOK 1;
+      :log warning "het_HTTP_SEND_BACKUP_OK";
+    } on-error={
+      :set SENDOK 0;
+      :log error "het_HTTP_SEND_BACKUP_FAIL";
+    }
+  }
+  :if ($SENDOK != 1) do={ :log error "het_HTTP_SEND_FAIL"; }
+}
+
+# BLOCK F - live manual tests
+/system script run het_CONFIG
+
+# One-shot POST test with tiny payload (must return to prompt without failure)
+:global SENDDATA "token=MONITOR_TOKEN_2026&type=test&site=KANO&router=AMBARIYYA_GLOBAL"
+/system script run het_HTTP_SEND
+:global SENDOK
+:put ("TEST SENDOK=" . $SENDOK)
+
+:time {/system script run het_PUSH_LIVE}
+:global SENDOK; :global SENDDATA
+:put ("LIVE SENDOK=" . $SENDOK . " LEN=" . [:len $SENDDATA])
+:time {/system script run het_VPN_CHECK}
+:put ("VPN SENDOK=" . $SENDOK . " LEN=" . [:len $SENDDATA])
+
+# BLOCK G - logs and scheduler
+/log print without-paging where message~"het_"
+/system scheduler enable [find name~"het_"]
+:delay 2s
+/system scheduler print without-paging where name~"het_"

@@ -1,0 +1,76 @@
+# KANO Mobile VPN Deployment Plan (Friendly + Safe)
+
+## Goal
+Deploy Mobile VPN monitoring fully with minimum risk and instant verification.
+
+## Before You Start
+- Confirm router time is correct.
+- Confirm internet is stable.
+- Confirm these files are uploaded in WinBox Files:
+  - het_config_install.rsc
+  - het_transport_install.rsc
+  - het_telemetry_install.rsc
+  - het_events_install.rsc
+  - het_live_users_install.rsc
+  - het_user_usage_install.rsc
+  - het_mobile_vpn_monitor_install.rsc
+  - het_schedulers_install.rsc
+  - het_full_installer.rsc
+
+## Phase 1 - Install
+1. Run full installer:
+/import file-name=het_full_installer.rsc
+
+2. Re-load base config:
+/system script run het_CONFIG
+
+3. Enable all HET schedulers:
+/system scheduler enable [find name~"het_"]
+
+## Phase 2 - Immediate Validation (same time check)
+1. Transport check:
+:set SENDOK 0
+:global SENDDATA "token=MONITOR_TOKEN_2026&type=test&site=KANO&router=AMBARIYYA_GLOBAL"
+/system script run het_HTTP_SEND
+:put ("TEST SENDOK=" . $SENDOK)
+
+2. Live checks:
+:time {/system script run het_PUSH_LIVE}
+:put ("LIVE SENDOK=" . $SENDOK)
+
+:time {/system script run het_VPN_CHECK}
+:put ("VPN SENDOK=" . $SENDOK)
+
+:time {/system script run het_MVPN_PUSH}
+:put ("MVPN SENDOK=" . $SENDOK)
+
+3. Script presence check:
+/system script print without-paging where name~"het_MVPN"
+/system scheduler print without-paging where name~"het_mobile_vpn_monitor"
+
+## Phase 3 - Functional Event Test
+Run one manual auth fail event push:
+:global SENDDATA ("token=" . $TOKEN . "&type=mobile_vpn&site=" . $SITE . "&router=" . $ROUTER . "&service=Mobile VPN&vpn_type=L2TP/IPsec&service_status=UP&l2tp_enabled=1&active_count=0&active_users=&event_type=auth_fail&username=asif&vpn_ip=-&source_ip=92.99.250.13&event_status=FAILED&notes=manual_test")
+/system script run het_HTTP_SEND
+
+Expected:
+- Mobile_VPN_Events row appears
+- Mobile_VPN_Summary updates
+- Telegram auth fail alert appears
+- Dashboard Mobile VPN card updates
+
+## Friendly Rollback (if needed)
+- Disable only mobile vpn scheduler:
+/system scheduler disable [find name="het_mobile_vpn_monitor"]
+
+- Keep all other HET monitoring active.
+- Share logs for debug:
+/log print without-paging where message~"het_MVPN|mobile vpn|het_HTTP_SEND"
+
+## Operational Notes
+- Service can be UP with zero active users.
+- DOWN only when L2TP server unavailable/disabled.
+- WARNING when auth fails cross threshold.
+- Tracked users default: asif,het2,het3,het4
+  - change if needed:
+  :global MVPNTRACKEDUSERS "asif,het2,het3,het4"

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>het NOC Dashboard — Live Operations Center</title>
+  <link rel="icon" type="image/x-icon" href="assets/img/het.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css?v=20260311prod" />
+</head>
+<body>
+  <div class="scanlines"></div>
+  <div class="grid-bg"></div>
+
+  <header class="noc-header">
+    <div class="header-content">
+      <div class="header-left">
+        <div class="logo-badge">
+          <span class="pulse-dot"></span>
+          <span class="logo-text">het NOC</span>
+        </div>
+        <h1 id="siteName">NETWORK OPERATIONS CENTER</h1>
+        <p class="header-subtitle" id="routerName">Live Monitoring Dashboard</p>
+      </div>
+      <div class="header-right">
+        <div class="status-line" id="statusLine">● SYSTEM ONLINE</div>
+        <div class="refresh-info">
+          <span id="lastRefresh">Last sync: initializing...</span>
+          <button id="refreshBtn" class="control-btn">REFRESH</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="noc-main">
+    <!-- CORE HEALTH SECTION -->
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">⚙️</span> CORE HEALTH
+      </h2>
+      <div class="cards-grid" id="coreCards">
+        <div class="metric-card loading">
+          <div class="card-glow"></div>
+          <div class="card-content">
+            <span class="metric-label">Router Status</span>
+            <div class="metric-value" data-unit="">--</div>
+            <span class="metric-hint">scanning...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ALERTS SECTION -->
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">🚨</span> INCIDENTS & ALERTS
+      </h2>
+      <div class="alert-summary" id="alertSummary"></div>
+      <div class="alerts-table">
+        <table>
+          <thead>
+            <tr>
+              <th>TIME</th>
+              <th>SEVERITY</th>
+              <th>TYPE</th>
+              <th>MESSAGE</th>
+            </tr>
+          </thead>
+          <tbody id="alertsBody">
+            <tr><td colspan="4" class="loading-text">Loading incidents...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TRAFFIC SECTION -->
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">📊</span> TRAFFIC & INTERFACES
+      </h2>
+      <div class="cards-grid" id="trafficCards">
+        <div class="metric-card loading">
+          <div class="card-glow"></div>
+          <div class="card-content">
+            <span class="metric-label">WAN Status</span>
+            <div class="metric-value">--</div>
+            <span class="metric-hint">loading...</span>
+          </div>
+        </div>
+      </div>
+      <div class="traffic-interfaces" id="trafficInterfaces"></div>
+    </section>
+
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">🧾</span> LIVE ROUTER LOGS
+      </h2>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Router Time</th>
+              <th>Severity</th>
+              <th>Topics</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="routerLogsBody">
+            <tr><td colspan="5" class="no-data">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- USERS SECTION -->
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">👥</span> TOP USERS & ACTIVITY
+      </h2>
+      <div class="users-panels">
+        <div class="user-panel">
+          <h3 class="panel-header">⚡ Daily Top 10</h3>
+          <div class="chart-container">
+            <canvas id="dailyUsersChart" height="180"></canvas>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Device Name</th>
+                <th>IP Address</th>
+                <th>Total GB</th>
+              </tr>
+            </thead>
+            <tbody id="dailyUsersTable">
+              <tr><td colspan="4" class="no-data">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="user-panel">
+          <h3 class="panel-header">📅 Monthly Top 10</h3>
+          <div class="chart-container">
+            <canvas id="monthlyUsersChart" height="180"></canvas>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Device Name</th>
+                <th>IP Address</th>
+                <th>Total GB</th>
+              </tr>
+            </thead>
+            <tbody id="monthlyUsersTable">
+              <tr><td colspan="4" class="no-data">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- REPORTS SECTION -->
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">📈</span> REPORTS & SUMMARIES
+      </h2>
+      <div class="reports-grid">
+        <div class="report-card">
+          <div class="report-header">Daily Report</div>
+          <div class="report-body" id="dailyReportText">
+            <p class="no-data">No daily report data yet.</p>
+          </div>
+        </div>
+        <div class="report-card">
+          <div class="report-header">Monthly Report</div>
+          <div class="report-body" id="monthlyReportText">
+            <p class="no-data">No monthly report data yet.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RUNTIME HEALTH SECTION -->
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">⚙️</span> RUNTIME & SYSTEM HEALTH
+      </h2>
+      <div class="runtime-grid" id="runtimeCards"></div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Process / Cycle</th>
+              <th>Status</th>
+              <th>Last Success</th>
+              <th>Last Failure</th>
+            </tr>
+          </thead>
+          <tbody id="runtimeTable">
+            <tr><td colspan="4" class="no-data">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SHEET HEALTH SECTION -->
+    <section class="noc-section">
+      <h2 class="section-title">
+        <span class="title-icon">📋</span> DATA INGESTION HEALTH
+      </h2>
+      <div class="health-grid" id="sheetHealthCards"></div>
+    </section>
+  </main>
+
+  <footer class="noc-footer">
+    <div class="footer-content">
+      <div class="footer-section">
+        <span class="footer-label">DEPLOYMENT:</span>
+        <span class="footer-value">Created by IT TEAM Asif Ali, Harish Exim Trading FZC</span>
+      </div>
+      <div class="footer-section">
+        <span class="footer-label">VISIT:</span>
+        <a href="https://asif.hetdubai.com/" target="_blank" class="footer-link">asif.hetdubai.com</a>
+      </div>
+      <div class="footer-section">
+        <span class="footer-label">API STATUS:</span>
+        <span id="apiHealth" class="status-indicator">waiting...</span>
+      </div>
+    </div>
+    <div class="footer-divider"></div>
+    <div class="footer-timestamp">
+      <span>Last updated: <span id="lastUpdateTime">--:--:-- UTC</span></span>
+      <span class="sync-status" id="syncStatus">● in-sync</span>
+    </div>
+  </footer>
+
+  <script src="config.js?v=20260311prod"></script>
+  <script src="assets/js/api.js?v=20260311prod"></script>
+  <script src="assets/js/charts.js?v=20260311prod"></script>
+  <script src="assets/js/render.js?v=20260311prod"></script>
+  <script src="assets/js/app.js?v=20260311prod"></script>
+</body>
+</html>

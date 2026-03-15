@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>het Enterprise NOC Monitor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container { max-width: 1600px; margin: 0 auto; }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #475569;
+    }
+    
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 5px;
+    }
+    
+    .header p {
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+    
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #334155;
+    }
+    
+    .metric-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #334155;
+    }
+    
+    .metric-box:last-child { border-bottom: none; }
+    
+    .metric-label {
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+    
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #0ea5e9;
+    }
+    
+    .metric-unit {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-left: 5px;
+    }
+    
+    .status-ok { color: #10b981; }
+    .status-warn { color: #f59e0b; }
+    .status-crit { color: #ef4444; }
+    
+    .progress-bar {
+      width: 100%;
+      background: #334155;
+      height: 8px;
+      border-radius: 4px;
+      margin-top: 5px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0ea5e9, #06b6d4);
+      border-radius: 4px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    
+    thead {
+      background: #0f172a;
+      border-bottom: 2px solid #334155;
+    }
+    
+    th {
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+    }
+    
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #334155;
+    }
+    
+    tr:hover {
+      background: rgba(30, 41, 59, 0.5);
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .badge-bridge { background: #065f46; color: #d1fae5; }
+    .badge-ether { background: #7c2d12; color: #fed7aa; }
+    .badge-ppp { background: #1f2937; color: #d1d5db; }
+    
+    .icon {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .icon-ok { background: #10b981; }
+    .icon-warn { background: #f59e0b; }
+    .icon-crit { background: #ef4444; }
+    
+    .full-width { grid-column: 1 / -1; }
+    
+    .no-data {
+      text-align: center;
+      color: #64748b;
+      padding: 30px;
+      font-style: italic;
+    }
+    
+    .timestamp {
+      font-size: 0.8rem;
+      color: #64748b;
+      text-align: right;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #334155;
+    }
+    
+    @media (max-width: 1024px) {
+      .grid-3 { grid-template-columns: 1fr 1fr; }
+    }
+    
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>het Enterprise NOC Monitor</h1>
+      <p>Real-time network operations dashboard with live user metrics, device inventory, and bandwidth monitoring</p>
+    </div>
+    
+    <!-- Live Users Section -->
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">Live Users</div>
+        <div class="metric-box">
+          <span class="metric-label">Total Live</span>
+          <div>
+            <span class="metric-value" id="liveUsersTotal">–</span>
+            <span class="metric-unit">users</span>
+          </div>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">LAN (ARP)</span>
+          <span class="metric-value" id="liveUsersARP" style="font-size: 1.2rem;">–</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">Hotspot</span>
+          <span class="metric-value" id="liveUsersHS" style="font-size: 1.2rem;">–</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">PPP</span>
+          <span class="metric-value" id="liveUsersPPP" style="font-size: 1.2rem;">–</span>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-title">System Resources</div>
+        <div class="metric-box">
+          <span class="metric-label">CPU Load</span>
+          <div>
+            <span class="metric-value" id="cpuLoad">–</span>
+            <span class="metric-unit">%</span>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="cpuBar" style="width: 0%;"></div>
+        </div>
+        <div class="metric-box" style="margin-top: 15px;">
+          <span class="metric-label">Memory</span>
+          <div>
+            <span class="metric-value" id="memUsage">–</span>
+            <span class="metric-unit">%</span>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="memBar" style="width: 0%;"></div>
+        </div>
+        <div class="metric-box" style="margin-top: 15px;">
+          <span class="metric-label">Threads</span>
+          <span class="metric-value" id="threads" style="font-size: 1.2rem;">–</span>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-title">WAN Interface (ISP)</div>
+        <div class="metric-box">
+          <span class="metric-label">RX</span>
+          <span class="metric-value" id="wanRX" style="font-size: 1rem;">– MB</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">TX</span>
+          <span class="metric-value" id="wanTX" style="font-size: 1rem;">– MB</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">Packets</span>
+          <span class="metric-value" id="wanPkt" style="font-size: 1rem;">–</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">Errors</span>
+          <span class="metric-value status-crit" id="wanErr">–</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- DHCP Status -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">DHCP Server Status</div>
+        <div class="metric-box">
+          <span class="metric-label">Bound Leases (Active)</span>
+          <span class="metric-value" id="dhcpBound">–</span>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-title">Uptime</div>
+        <div class="metric-box">
+          <span class="metric-label">Router Uptime</span>
+          <span class="metric-value" id="uptime" style="font-size: 0.9rem;">–</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Devices Table -->
+    <div class="card full-width">
+      <div class="card-title">Live Devices (LAN)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>IP Address</th>
+            <th>MAC Address</th>
+            <th>Last Seen</th>
+            <th>Interface</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="devicesTable">
+          <tr><td colspan="5" class="no-data">No device data available</td></tr>
+        </tbody>
+      </table>
+      <div class="timestamp" id="devicesTs"></div>
+    </div>
+    
+    <!-- Top Talkers -->
+    <div class="card full-width">
+      <div class="card-title">Top Bandwidth Users (Real-Time)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Source IP</th>
+            <th>Destination</th>
+            <th>Bytes Transferred</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody id="talkersTable">
+          <tr><td colspan="5" class="no-data">No bandwidth data available</td></tr>
+        </tbody>
+      </table>
+      <div class="timestamp" id="talkersTs"></div>
+    </div>
+  </div>
+  
+  <script>
+    async function fetchMonitorData() {
+      try {
+        // Replace with your cached API endpoint
+        const url = 'https://noc.hetdubai.com/api/cached-api.php?section=enterprise_monitor';
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (!data.status) return;
+        const em = data.status.enterprise_monitor || {};
+        const devices = data.status.enterprise_devices || [];
+        const talkers = data.status.enterprise_talkers || [];
+        
+        // Update Live Users
+        document.getElementById('liveUsersTotal').textContent = em.live_users || '–';
+        document.getElementById('liveUsersARP').textContent = em.arp_lan_count || '–';
+        document.getElementById('liveUsersHS').textContent = em.hs_count || '–';
+        document.getElementById('liveUsersPPP').textContent = em.ppp_count || '–';
+        
+        // Update Resources
+        const cpu = parseInt(em.cpu) || 0;
+        const mem = parseInt(em.memory) || 0;
+        document.getElementById('cpuLoad').textContent = cpu;
+        document.getElementById('cpuBar').style.width = cpu + '%';
+        document.getElementById('memUsage').textContent = mem;
+        document.getElementById('memBar').style.width = mem + '%';
+        document.getElementById('threads').textContent = em.threads || '–';
+        
+        // Update WAN
+        document.getElementById('wanRX').textContent = (em.wan_rx / 1024 / 1024).toFixed(1) + ' MB';
+        document.getElementById('wanTX').textContent = (em.wan_tx / 1024 / 1024).toFixed(1) + ' MB';
+        document.getElementById('wanPkt').textContent = em.wan_pkt || '–';
+        document.getElementById('wanErr').textContent = em.wan_err || '0';
+        
+        // Update DHCP
+        document.getElementById('dhcpBound').textContent = em.dhcp_bound || '–';
+        document.getElementById('uptime').textContent = em.uptime || '–';
+        
+        // Populate Devices Table
+        const devTable = document.getElementById('devicesTable');
+        if (devices.length > 0) {
+          devTable.innerHTML = devices.slice(0, 50).map((dev, idx) => `
+            <tr>
+              <td><strong>${dev.ip || '–'}</strong></td>
+              <td><code>${dev.mac || '–'}</code></td>
+              <td>${dev.last_seen || 'n/a'}</td>
+              <td><span class="badge badge-bridge">${dev.interface || 'bridge1'}</span></td>
+              <td><span class="icon icon-ok"></span>Active</td>
+            </tr>
+          `).join('');
+        }
+        document.getElementById('devicesTs').textContent = `Updated: ${em.ts || new Date().toLocaleString()}`;
+        
+        // Populate Talkers Table
+        const talkTable = document.getElementById('talkersTable');
+        if (talkers.length > 0) {
+          talkTable.innerHTML = talkers.slice(0, 20).map((t, idx) => `
+            <tr>
+              <td><strong>#${idx + 1}</strong></td>
+              <td>${t.source_ip || '–'}</td>
+              <td>${t.destination_ip || '–'}</td>
+              <td><strong>${(t.bytes / 1024 / 1024).toFixed(2)} MB</strong></td>
+              <td>${t.category || 'Traffic'}</td>
+            </tr>
+          `).join('');
+        }
+        document.getElementById('talkersTs').textContent = `Updated: ${em.ts || new Date().toLocaleString()}`;
+      } catch (err) {
+        console.error('Failed to fetch monitor data:', err);
+      }
+    }
+    
+    // Initial load and refresh every 60 seconds
+    fetchMonitorData();
+    setInterval(fetchMonitorData, 60000);
+  </script>
+</body>
+</html>

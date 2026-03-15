@@ -1,0 +1,14 @@
+# Protect cache directory from direct browser access
+# This prevents users from directly accessing cache files
+# All access goes through cached-api.php
+
+<Files "*.json">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Allow access to PHP scripts in this directory
+<Files "cached-api.php">
+    Order allow,deny
+    Allow from all
+</Files>

@@ -1,0 +1,73 @@
+# Enterprise one-time install + verify (run line by line)
+
+# 1) Upload these files in WinBox Files first:
+#    het_config_install.rsc
+#    het_transport_install.rsc
+#    het_telemetry_install.rsc
+#    het_enterprise_traffic_install.rsc
+#    het_schedulers_install.rsc
+
+# 2) Verify files
+/file print without-paging where name~"het_(config|transport|telemetry|enterprise_traffic|schedulers)_install.rsc"
+
+# 3) Import
+/import file-name=het_config_install.rsc
+/import file-name=het_transport_install.rsc
+/import file-name=het_telemetry_install.rsc
+/import file-name=het_enterprise_traffic_install.rsc
+/import file-name=het_schedulers_install.rsc
+
+# 3b) Traffic hotfix only (if base already installed)
+# Upload latest het_enterprise_traffic_install.rsc then run:
+# /system script remove [find name="het_PUSH_TRAFFIC"]
+# /import file-name=het_enterprise_traffic_install.rsc
+# :time {/system script run het_PUSH_TRAFFIC}
+# :global SENDOK; :put ("TRAFFIC SENDOK=" . $SENDOK)
+
+# 4) Add dedicated enterprise traffic scheduler (short safe commands)
+/system scheduler remove [find name="het_traffic"]
+/system scheduler add name="het_traffic" start-time=startup interval=5m disabled=no policy=read,write,test,policy
+/system scheduler set [find name="het_traffic"] on-event="/system script run het_PUSH_TRAFFIC"
+
+# 5) Health/VPN cadence
+/system scheduler set [find name="het_live"] interval=10m
+/system scheduler set [find name="het_vpn"] interval=15m
+/system scheduler set [find name="het_rlog"] interval=1m
+
+# 6) Manual checks
+/system script run het_CONFIG
+:set SENDOK 0
+:global SENDDATA "token=MONITOR_TOKEN_2026&type=test&site=KANO&router=AMBARIYYA_GLOBAL"
+/system script run het_HTTP_SEND
+:global SENDOK; :put ("TEST SENDOK=" . $SENDOK)
+
+:time {/system script run het_PUSH_TRAFFIC}
+:put ("TRAFFIC SENDOK=" . $SENDOK)
+
+:time {/system script run het_PUSH_LIVE}
+:put ("LIVE SENDOK=" . $SENDOK)
+
+:time {/system script run het_VPN_CHECK}
+:put ("VPN SENDOK=" . $SENDOK)
+
+# 7) Verify schedulers
+/system scheduler enable [find name~"het_"]
+:delay 2s
+/system scheduler print without-paging where name~"het_"
+
+# 8) Logs to share
+/log print without-paging where message~"het_PUSH_TRAFFIC|het_HTTP_SEND|het_PUSH_LIVE|het_VPN_CHECK"
+
+# 9) Traffic payload debug (must not be empty)
+/system script run het_PUSH_TRAFFIC
+:global SENDDATA; :put ("SENDDATA_LEN=" . [:len $SENDDATA])
+:put $SENDDATA
+:global SENDOK; :put ("SENDOK=" . $SENDOK)
+
+# 10) Disable old Interface Traffic pipeline (recommended)
+/system scheduler disable [find name="het_iface"]
+/system scheduler print without-paging where name~"het_(iface|traffic)"
+
+# 11) Optional cleanup of old iface script (only if you no longer use it)
+# /system script remove [find name="het_PUSH_IFACE"]
+# /system script print without-paging where name~"het_PUSH_(IFACE|TRAFFIC)"

@@ -1,0 +1,9 @@
+**/**
+!*.js
+!*.html
+!appsscript.json
+!.clasp.json
+
+backup_pre_prod_switch_*/**
+routeros/**
+.vscode/**

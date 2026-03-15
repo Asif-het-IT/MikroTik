@@ -1,0 +1,86 @@
+# HET All-in-One Runbook (RouterOS 6.49.x)
+# Run line by line and share output back for debug.
+# If pager appears (-- [Q quit|D dump|C-z pause]) press Q key on keyboard.
+# NOTE:
+# - This removes only scripts/schedulers with names matching "het_".
+# - It does NOT remove PPP profiles, IP pools, users, firewall, or other router config.
+# - Do not trust SENDOK if scripts are missing; first confirm scripts exist.
+
+# PRECHECK - required installer files must exist on router before cleanup/import
+/file print without-paging where name~"het_(config|transport|telemetry|events|live_users|user_usage|mobile_vpn_monitor|schedulers)_install.rsc"
+# If file list is empty, STOP and upload these 5 files in WinBox Files first.
+
+# A) Clean old HET scripts/schedulers
+/system scheduler remove [find name~"het_"]
+/system script job remove [find where script~"het_"]
+/system script remove [find name~"het_"]
+
+# B) Upload/install modules (use WinBox Files first)
+# Required files:
+#   het_config_install.rsc
+#   het_transport_install.rsc
+#   het_telemetry_install.rsc
+#   het_events_install.rsc
+#   het_live_users_install.rsc
+#   het_user_usage_install.rsc
+#   het_mobile_vpn_monitor_install.rsc
+#   het_schedulers_install.rsc
+/file print without-paging where name~"het_(config|transport|telemetry|events|live_users|user_usage|mobile_vpn_monitor|schedulers)_install.rsc"
+/import file-name=het_config_install.rsc
+/import file-name=het_transport_install.rsc
+/import file-name=het_telemetry_install.rsc
+/import file-name=het_events_install.rsc
+/import file-name=het_live_users_install.rsc
+/import file-name=het_user_usage_install.rsc
+/import file-name=het_mobile_vpn_monitor_install.rsc
+/import file-name=het_schedulers_install.rsc
+
+# C) Verify scripts and schedulers exist
+/system script print without-paging where name~"het_"
+/system scheduler print without-paging where name~"het_"
+# If you do not see het_CONFIG/het_HTTP_SEND/het_PUSH_LIVE/het_VPN_CHECK, STOP and fix imports first.
+
+# C2) Verify extended scripts exist
+/system script print without-paging where name~"het_PUSH_(IFACE|USERS|USAGE|ROUTERLOG|CHANGE)"
+/system scheduler print without-paging where name~"het_(iface|users|usage|rlog|change)"
+
+# C3) Verify Mobile VPN scripts/scheduler exist
+/system script print without-paging where name~"het_MVPN"
+/system scheduler print without-paging where name~"het_mobile_vpn_monitor"
+
+# D) Hard checks for transport/config
+/system script run het_CONFIG
+:global APIURL; :put ("APIURL=" . $APIURL)
+:global BACKUPURL; :put ("BACKUPURL=" . $BACKUPURL)
+:global TOKEN; :put ("TOKEN_LEN=" . [:len $TOKEN])
+
+# E) Manual send tests
+:set SENDOK 0
+:global SENDDATA "token=MONITOR_TOKEN_2026&type=test&site=KANO&router=AMBARIYYA_GLOBAL"
+/system script run het_HTTP_SEND
+:global SENDOK; :put ("TEST SENDOK=" . $SENDOK)
+
+:time {/system script run het_PUSH_LIVE}
+:put ("LIVE SENDOK=" . $SENDOK)
+
+:time {/system script run het_VPN_CHECK}
+:put ("VPN SENDOK=" . $SENDOK)
+
+:time {/system script run het_MVPN_PUSH}
+:put ("MVPN SENDOK=" . $SENDOK)
+
+# F) Re-enable scheduler and verify run counts
+/system scheduler enable [find name~"het_"]
+:delay 2s
+/system scheduler print without-paging where name~"het_"
+
+# G) Print focused logs
+/log print without-paging where message~"het_CONFIG|het_HTTP_SEND|het_PUSH_LIVE|het_VPN_CHECK"
+/log print without-paging where message~"het_MVPN|mobile vpn"
+
+# H) What to share back
+# 1) TEST SENDOK=...
+# 2) LIVE SENDOK=...
+# 3) VPN SENDOK=...
+# 4) MVPN SENDOK=...
+# 5) Last 20 log lines from section G

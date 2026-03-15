@@ -1,0 +1,149 @@
+/system scheduler remove [find name~"het_"]
+/system script job remove [find where script~"het_"]
+/system script remove [find name~"het_"]
+
+/system script add name="het_CONFIG" policy=read,write,test,policy source={
+  :global APIURL "https://mikrotik-monitor-proxy.hetgraphic17.workers.dev";
+  :global BACKUPURL "";
+  :global TOKEN "MONITOR_TOKEN_2026";
+  :global SITE "KANO";
+  :global ROUTER "AMBARIYYA_GLOBAL";
+  :global WANIF "ether1";
+  :global VPNHOST "vpn.hetdubai.com";
+  :global SENDDATA;
+  :global SENDOK;
+  :if ([:typeof $SENDDATA] = "nothing") do={ :set SENDDATA ""; }
+  :if ([:typeof $SENDOK] = "nothing") do={ :set SENDOK 0; }
+  :log info "het_CONFIG_LOADED";
+}
+
+/system script add name="het_HTTP_SEND" policy=read,write,test,policy source={
+  :global APIURL;
+  :global BACKUPURL;
+  :global SENDDATA;
+  :global SENDOK;
+  :local header "Content-Type: application/x-www-form-urlencoded";
+  :local payload "";
+
+  :if ([:len $APIURL] = 0) do={ /system script run het_CONFIG; }
+  :set SENDOK 0;
+  :set payload [:tostr $SENDDATA];
+
+  :if ([:len $payload] = 0) do={
+    :log error "het_HTTP_SEND_DATA_EMPTY";
+    :return;
+  }
+
+  :do {
+    /tool fetch url=$APIURL http-method=post http-data=$payload http-header-field=$header check-certificate=no duration=10s output=none;
+    :set SENDOK 1;
+    :log info "het_HTTP_SEND_PRIMARY_OK";
+  } on-error={
+    :set SENDOK 0;
+    :log warning "het_HTTP_SEND_PRIMARY_FAIL";
+  }
+
+  :if (($SENDOK != 1) and ([:len $BACKUPURL] > 0)) do={
+    :do {
+      /tool fetch url=$BACKUPURL http-method=post http-data=$payload http-header-field=$header check-certificate=no duration=10s output=none;
+      :set SENDOK 1;
+      :log warning "het_HTTP_SEND_BACKUP_OK";
+    } on-error={
+      :set SENDOK 0;
+      :log error "het_HTTP_SEND_BACKUP_FAIL";
+    }
+  }
+
+  :if ($SENDOK != 1) do={ :log error "het_HTTP_SEND_FAIL"; }
+}
+
+/system script add name="het_PUSH_LIVE" policy=read,write,test,policy source={
+  :global TOKEN;
+  :global SITE;
+  :global ROUTER;
+  :global WANIF;
+  :global SENDDATA;
+  :global SENDOK;
+
+  :if ([:len $TOKEN] = 0) do={ /system script run het_CONFIG; }
+  :if ([:typeof $SENDDATA] = "nothing") do={ :set SENDDATA ""; }
+  :if ([:typeof $SENDOK] = "nothing") do={ :set SENDOK 0; }
+
+  :local cpu [/system resource get cpu-load];
+  :local memFree [/system resource get free-memory];
+  :local memTot [/system resource get total-memory];
+  :local mem 0;
+  :local uptime [/system resource get uptime];
+  :local peers 0;
+  :local ipsec "DOWN";
+  :local pubip "0.0.0.0";
+  :local addrId [/ip address find where interface=$WANIF and disabled=no];
+
+  :if ($memTot > 0) do={ :set mem (100 - (($memFree * 100) / $memTot)); }
+  :do { :set peers [/ip ipsec active-peers print count-only]; } on-error={ :set peers 0; };
+  :if ($peers > 0) do={ :set ipsec "UP"; }
+
+  :if ([:len $addrId] > 0) do={
+    :local rawAddr [/ip address get [:pick $addrId 0] address];
+    :if ([:len $rawAddr] > 0) do={
+      :local slashPos [:find $rawAddr "/"];
+      :if ($slashPos != nil) do={ :set pubip [:pick $rawAddr 0 $slashPos]; } else={ :set pubip $rawAddr; }
+    }
+  }
+
+  :set SENDDATA ("token=" . $TOKEN . "&type=live&site=" . $SITE);
+  :set SENDDATA ($SENDDATA . "&router=" . $ROUTER);
+  :set SENDDATA ($SENDDATA . "&status=ONLINE&message=router_live_ok");
+  :set SENDDATA ($SENDDATA . "&cpu=" . $cpu . "&memory=" . $mem);
+  :set SENDDATA ($SENDDATA . "&uptime=" . $uptime);
+  :set SENDDATA ($SENDDATA . "&public_ip=" . $pubip);
+  :set SENDDATA ($SENDDATA . "&ipsec=" . $ipsec . "&isp=n/a");
+  /system script run het_HTTP_SEND;
+
+  :if ($SENDOK != 1) do={ :log error ("het_PUSH_LIVE_FAIL len=" . [:len $SENDDATA]); }
+}
+
+/system script add name="het_VPN_CHECK" policy=read,write,test,policy source={
+  :global TOKEN;
+  :global SITE;
+  :global ROUTER;
+  :global VPNHOST;
+  :global SENDDATA;
+  :global SENDOK;
+
+  :if ([:len $TOKEN] = 0) do={ /system script run het_CONFIG; }
+  :if ([:typeof $SENDDATA] = "nothing") do={ :set SENDDATA ""; }
+  :if ([:typeof $SENDOK] = "nothing") do={ :set SENDOK 0; }
+
+  :local peers 0;
+  :local ipsec "DOWN";
+  :local status "DOWN";
+  :local pingOk 0;
+
+  :do { :set peers [/ip ipsec active-peers print count-only]; } on-error={ :set peers 0; };
+  :if ($peers > 0) do={
+    :set ipsec "UP";
+    :set status "UP";
+    :set pingOk 1;
+  }
+
+  :set SENDDATA ("token=" . $TOKEN . "&type=vpn&site=" . $SITE);
+  :set SENDDATA ($SENDDATA . "&router=" . $ROUTER);
+  :set SENDDATA ($SENDDATA . "&host=" . $VPNHOST);
+  :set SENDDATA ($SENDDATA . "&status=" . $status . "&ping=" . $pingOk);
+  :set SENDDATA ($SENDDATA . "&message=ipsec=" . $ipsec);
+  /system script run het_HTTP_SEND;
+
+  :if ($SENDOK != 1) do={ :log error ("het_VPN_CHECK_FAIL len=" . [:len $SENDDATA]); }
+}
+
+/system scheduler add name="het_live" start-time=startup interval=10m on-event=":delay 5s; /system script run het_PUSH_LIVE" policy=read,write,test,policy disabled=no
+/system scheduler add name="het_vpn" start-time=startup interval=15m on-event=":delay 15s; /system script run het_VPN_CHECK" policy=read,write,test,policy disabled=no
+
+/system script run het_CONFIG
+:time {/system script run het_PUSH_LIVE}
+:time {/system script run het_VPN_CHECK}
+/system scheduler print detail where name~"het_"
+/system script print where name~"het_(CONFIG|HTTP_SEND|PUSH_LIVE|VPN_CHECK)"
+/log print where topics~"error"
+/log print where message~"het_"

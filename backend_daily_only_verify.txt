@@ -1,0 +1,29 @@
+HET BACKEND VERIFY - DAILY ONLY MODE
+
+1) Apps Script editor se run karo:
+- applyScriptProperties
+- runDropPendingOutbox_AlertsBridge
+- runDropNoisyOutbox_AlertsBridge
+- runAlertCycle
+
+2) Expected behavior after runAlertCycle:
+- Outbox me nayi PENDING realtime rows na banen
+- Telegram/Email pe instant alert na aaye
+- Alerts sheet me records aa sakte hain (ye normal hai)
+
+3) Daily summary check:
+- runDailyReport manually ek dafa run karo
+- Telegram + Email pe sirf rozana khulasa message aaye
+
+4) Optional endpoint status check (browser/curl):
+- GET <YOUR_APPS_SCRIPT_WEBAPP_URL>?token=MONITOR_TOKEN_2026&admin=status
+- verify response me ok=true and triggers present
+
+5) Outbox sheet quick validation:
+- Status column me old noisy rows DROPPED dikhni chahiye
+- NEW realtime alert rows PENDING nahi aani chahiye
+
+6) If realtime alert still appears:
+- Re-run applyScriptProperties
+- Re-deploy latest Apps Script version
+- Run runDropPendingOutbox_AlertsBridge again
