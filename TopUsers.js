@@ -40,7 +40,8 @@ function HET_parseUserUsageEntries_(entriesText) {
 
 function HET_deviceMap_() {
   var sh = HET.ss().getSheetByName(HET.SHEETS.DEVICE_MAPPING);
-  var rows = hetGetTopDataRows_(sh, 8, 5000);
+  var width = (HET.HEADERS[HET.SHEETS.DEVICE_MAPPING] || []).length || 13;
+  var rows = hetGetTopDataRows_(sh, width, 5000);
   var map = {};
 
   rows.forEach(function(r) {
@@ -53,7 +54,12 @@ function HET_deviceMap_() {
       deviceType: hetSafeStr_(r[3], 60),
       notes: hetSafeStr_(r[4], 250),
       preferredName: hetSafeStr_(r[5], 120),
-      lastSeenIp: hetSafeStr_(r[6], 40)
+      lastSeenIp: hetSafeStr_(r[6], 40),
+      resolvedSite: hetSafeStr_(r[8], 40),
+      nameSource: hetSafeStr_(r[9], 30),
+      siteSource: hetSafeStr_(r[10], 30),
+      confidence: hetSafeStr_(r[11], 20),
+      lastSeenInterface: hetSafeStr_(r[12], 40)
     };
   });
 
@@ -63,7 +69,9 @@ function HET_deviceMap_() {
 function HET_upsertDeviceMapping_(rows) {
   var ss = HET.ss();
   var sh = hetGetOrCreateSheet_(ss, HET.SHEETS.DEVICE_MAPPING);
-  var existingRows = hetGetTopDataRows_(sh, 8, 10000);
+  var header = HET.HEADERS[HET.SHEETS.DEVICE_MAPPING] || [];
+  var width = header.length || 13;
+  var existingRows = hetGetTopDataRows_(sh, width, 10000);
   var map = {};
   var order = [];
   var i;
@@ -79,7 +87,12 @@ function HET_upsertDeviceMapping_(rows) {
       hetSafeStr_(r[4], 250),
       hetSafeStr_(r[5], 120),
       hetSafeStr_(r[6], 40),
-      r[7] instanceof Date ? r[7] : ''
+      r[7] instanceof Date ? r[7] : '',
+      hetSafeStr_(r[8], 40),
+      hetSafeStr_(r[9], 30),
+      hetSafeStr_(r[10], 30),
+      hetSafeStr_(r[11], 20),
+      hetSafeStr_(r[12], 40)
     ];
     order.push(mac);
   });
@@ -89,7 +102,7 @@ function HET_upsertDeviceMapping_(rows) {
     var row;
     if (!mac) return;
 
-    row = map[mac] || [mac, '', '', '', '', '', '', ''];
+    row = map[mac] || [mac, '', '', '', '', '', '', '', '', '', '', '', ''];
     if (item.hostname) row[1] = hetSafeStr_(item.hostname, 120);
     if (item.comment && item.comment !== 'n/a') row[2] = hetSafeStr_(item.comment, 120);
     if (!row[5]) {
@@ -97,6 +110,11 @@ function HET_upsertDeviceMapping_(rows) {
     }
     row[6] = hetSafeStr_(item.ip, 40);
     row[7] = hetNowDate_();
+    if (item.resolvedSite) row[8] = hetSafeStr_(item.resolvedSite, 40);
+    if (item.nameSource) row[9] = hetSafeStr_(item.nameSource, 30);
+    if (item.siteSource) row[10] = hetSafeStr_(item.siteSource, 30);
+    if (item.confidence) row[11] = hetSafeStr_(item.confidence, 20);
+    if (item.lastSeenInterface) row[12] = hetSafeStr_(item.lastSeenInterface, 40);
 
     map[mac] = row;
     if (order.indexOf(mac) < 0) order.push(mac);
@@ -105,10 +123,10 @@ function HET_upsertDeviceMapping_(rows) {
   if (!order.length) return;
 
   sh.clearContents();
-  hetEnsureHeader_(sh, HET.HEADERS[HET.SHEETS.DEVICE_MAPPING]);
+  hetEnsureHeader_(sh, header);
 
   var out = order.map(function(mac) { return map[mac]; });
-  sh.getRange(2, 1, out.length, 8).setValues(out);
+  sh.getRange(2, 1, out.length, width).setValues(out);
   sh.getRange(2, 8, out.length, 1).setNumberFormat(HET.cfg().DATE_TIME_FMT);
 }
 
@@ -143,6 +161,35 @@ function HET_ingestUserUsage_(now, site, router, p) {
   });
 
   if (rows.length) {
+    var resolvedMap = (typeof HET_shadowResolveRows_ === 'function')
+      ? HET_shadowResolveRows_({
+          now: now,
+          site: site,
+          router: router,
+          payloadType: 'user_usage',
+          rows: entries.map(function(x) {
+            return {
+              ip: x.ip,
+              mac: x.mac,
+              hostname: x.hostname,
+              comment: x.comment,
+              iface: x.iface,
+              totalBytes: hetToNum_(x.upload, 0) + hetToNum_(x.download, 0)
+            };
+          })
+        })
+      : {};
+
+    entries.forEach(function(item) {
+      var meta = resolvedMap[HET_macKey_(item.mac)] || null;
+      if (!meta) return;
+      item.resolvedSite = meta.resolvedSite;
+      item.nameSource = meta.nameSource;
+      item.siteSource = meta.siteSource;
+      item.confidence = meta.confidence;
+      item.lastSeenInterface = meta.lastSeenInterface;
+    });
+
     hetInsertRows_(sh, rows);
     HET_upsertDeviceMapping_(entries);
   }

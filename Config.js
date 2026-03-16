@@ -51,6 +51,12 @@ this.HET = this.HET || {};
     RAW_KEEP_ROWS: 2000,
     AUTO_SEND_OUTBOX: 'YES',
     COMMAND_BATCH_LIMIT: 3,
+    IDENTITY_ENRICH_ENABLE: 'YES',
+    SITE_RESOLVE_ENABLE: 'YES',
+    UNKNOWN_TRIAGE_ENABLE: 'YES',
+    ENRICHED_OUTPUT_ENABLE: 'NO',
+    IDENTITY_TRAFFIC_MIN_MB: 30,
+    IDENTITY_VALIDATION_AUTO_TG_ENABLE: 'NO',
 
     MOBILE_VPN_SITE: 'KANO',
     MOBILE_VPN_SERVICE: 'Mobile VPN',
@@ -92,6 +98,12 @@ this.HET = this.HET || {};
     SHEET_HEALTH: 'Sheet Health',
     RAW_USER_USAGE: 'Raw_User_Usage',
     DEVICE_MAPPING: 'Device_Mapping',
+    DEVICE_SITE_MAPPING: 'Device_Site_Mapping',
+    INTERFACE_SITE_MAPPING: 'Interface_Site_Mapping',
+    IDENTITY_RESOLUTION_LOG: 'Identity_Resolution_Log',
+    UNKNOWN_DEVICE_TRIAGE: 'Unknown_Device_Triage',
+    IDENTITY_VALIDATION_REPORTS: 'Identity_Validation_Reports',
+    STATIC_INVENTORY: 'Static_Inventory',
     DAILY_USER_SUMMARY: 'Daily_User_Summary',
     MONTHLY_USER_SUMMARY: 'Monthly_User_Summary',
     TOP_USERS_DAILY: 'Top_Users_Daily',
@@ -126,7 +138,13 @@ this.HET = this.HET || {};
   ns.HEADERS[ns.SHEETS.SMART_SUMMARY_LOG] = ['Time', 'Command', 'Status', 'Engine', 'Prompt', 'Response', 'Meta'];
   ns.HEADERS[ns.SHEETS.SHEET_HEALTH] = ['Checked At', 'Sheet', 'Last Data Time', 'Age (min)', 'Data Rows', 'Status', 'Notes'];
   ns.HEADERS[ns.SHEETS.RAW_USER_USAGE] = ['Time', 'Site', 'Router', 'IP', 'MAC', 'Hostname', 'Comment', 'Interface', 'Upload Bytes', 'Download Bytes', 'Total Bytes', 'Source', 'Window Key'];
-  ns.HEADERS[ns.SHEETS.DEVICE_MAPPING] = ['MAC', 'Hostname', 'Comment', 'Device Type', 'Notes', 'Preferred Name', 'Last Seen IP', 'Last Seen'];
+  ns.HEADERS[ns.SHEETS.DEVICE_MAPPING] = ['MAC', 'Hostname', 'Comment', 'Device Type', 'Notes', 'Preferred Name', 'Last Seen IP', 'Last Seen', 'Resolved Site', 'Name Source', 'Site Source', 'Confidence', 'Last Seen Interface'];
+  ns.HEADERS[ns.SHEETS.DEVICE_SITE_MAPPING] = ['MAC', 'Site', 'Source', 'Updated At', 'Notes'];
+  ns.HEADERS[ns.SHEETS.INTERFACE_SITE_MAPPING] = ['Interface', 'Site', 'Source', 'Updated At', 'Notes'];
+  ns.HEADERS[ns.SHEETS.IDENTITY_RESOLUTION_LOG] = ['Time', 'MAC', 'IP', 'Resolved Name', 'Resolved Site', 'Name Source', 'Site Source', 'Confidence', 'Router', 'Payload Type'];
+  ns.HEADERS[ns.SHEETS.UNKNOWN_DEVICE_TRIAGE] = ['Time', 'MAC', 'IP', 'Hostname', 'Interface', 'Last Seen', 'Reason', 'Suggested Action'];
+  ns.HEADERS[ns.SHEETS.IDENTITY_VALIDATION_REPORTS] = ['Generated At', 'Window Start', 'Window End', 'Hours', 'Total Devices', 'Unknown Ratio %', 'Site Resolution %', 'Misclassified Devices', 'Identity Rows', 'Unknown Triage Rows', 'Device Mapping Updates', 'Ingestion Failures', 'Telegram Sent', 'Summary', 'Meta'];
+  ns.HEADERS[ns.SHEETS.STATIC_INVENTORY] = ['MAC', 'Device Name', 'Site', 'Notes', 'Updated At'];
   ns.HEADERS[ns.SHEETS.DAILY_USER_SUMMARY] = ['Date', 'Site', 'Router', 'MAC', 'IP', 'Hostname', 'Comment', 'Device Type', 'Upload Delta', 'Download Delta', 'Total Delta', 'Samples', 'Last Seen'];
   ns.HEADERS[ns.SHEETS.MONTHLY_USER_SUMMARY] = ['Month', 'Site', 'Router', 'MAC', 'IP', 'Hostname', 'Comment', 'Device Type', 'Upload Delta', 'Download Delta', 'Total Delta', 'Days Active', 'Last Seen'];
   ns.HEADERS[ns.SHEETS.TOP_USERS_DAILY] = ['Date', 'Rank', 'IP', 'MAC', 'Hostname', 'Comment', 'Device Type', 'Upload', 'Download', 'Total'];

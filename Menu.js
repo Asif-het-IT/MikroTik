@@ -21,6 +21,8 @@ function HET_buildCustomMenu_() {
     .addItem('Run Runtime Health Check', 'menuRunRuntimeHealthCheck')
     .addItem('Run Maintenance Cycle', 'menuRunMaintenanceCycle')
     .addItem('Refresh Top Users', 'menuRefreshTopUsers')
+      .addItem('Start Shadow Observation (72h)', 'menuStartShadowObservation')
+      .addItem('Identity Validation Report', 'menuIdentityValidationReport')
     .addSeparator()
     .addItem('Drop Pending Outbox', 'menuDropPendingOutbox')
     .addItem('Drop Noisy Outbox', 'menuDropNoisyOutbox')
@@ -137,6 +139,22 @@ function menuRefreshTopUsers() {
   var result = (typeof HET_writeTopUserSheets_ === 'function') ? HET_writeTopUserSheets_() : { ok: false, error: 'Top users helper missing' };
   Logger.log('menuRefreshTopUsers result: ' + JSON.stringify(result));
   HET_menuToast_(result.ok ? 'Top users refreshed.' : 'Top users refresh failed.');
+}
+
+function menuStartShadowObservation() {
+  var result = (typeof HET_startShadowObservation_ === 'function')
+    ? HET_startShadowObservation_(72)
+    : { ok: false, error: 'Shadow observation helper missing' };
+  Logger.log('menuStartShadowObservation result: ' + JSON.stringify(result));
+  HET_menuToast_(result.ok ? 'Shadow observation started for 72h.' : 'Shadow observation start failed.');
+}
+
+function menuIdentityValidationReport() {
+  var result = (typeof HET_identityValidationReport_ === 'function')
+    ? HET_identityValidationReport_(72)
+    : { ok: false, error: 'Identity validation helper missing' };
+  Logger.log('menuIdentityValidationReport result: ' + JSON.stringify(result));
+  HET_menuToast_(result.ok ? 'Identity validation report generated (see logs).' : 'Identity validation report failed.');
 }
 
 function menuDropPendingOutbox() {

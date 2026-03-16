@@ -260,21 +260,44 @@ function HET_ingest(e) {
     var usrSh = hetGetOrCreateSheet_(ss, HET.SHEETS.CONNECTED_USERS);
     var users = hetSafeStr_(p.users, 45000);
     var userRows = [];
+    var userObjs = [];
     if (users) {
       users.split(';').forEach(function(line) {
         if (!line) return;
         var a = line.split('|');
+        var ip = hetSafeStr_(a[0], 40);
+        var mac = hetSafeStr_(a[1], 40);
+        var host = hetSafeStr_(a[2], 120);
+        var iface = hetSafeStr_(a[3], 40);
+        var ctype = hetSafeStr_(a[4], 20);
         userRows.push([
           now, site, router,
-          hetSafeStr_(a[0], 40),
-          hetSafeStr_(a[1], 40),
-          hetSafeStr_(a[2], 120),
-          hetSafeStr_(a[3], 40),
-          hetSafeStr_(a[4], 20)
+          ip,
+          mac,
+          host,
+          iface,
+          ctype
         ]);
+        userObjs.push({
+          ip: ip,
+          mac: mac,
+          hostname: host,
+          comment: '',
+          iface: iface,
+          totalBytes: 0
+        });
       });
     }
     hetInsertRows_(usrSh, userRows);
+    if (userObjs.length && typeof HET_shadowResolveRows_ === 'function') {
+      HET_shadowResolveRows_({
+        now: now,
+        site: site,
+        router: router,
+        payloadType: 'users',
+        rows: userObjs
+      });
+    }
     return;
   }
 
@@ -290,6 +313,23 @@ function HET_ingest(e) {
       hetToInt_(p.total, 0),
       hetSafeStr_(p.entries, 10000)
     ]]);
+    // Shadow resolve: entries format is "ip|mac|iface|conntype;..."
+    var luEntriesStr = hetSafeStr_(p.entries, 10000);
+    if (luEntriesStr && typeof HET_shadowResolveRows_ === 'function') {
+      var luObjs = [];
+      luEntriesStr.split(';').forEach(function(line) {
+        if (!line) return;
+        var a = line.split('|');
+        var lip = hetSafeStr_(a[0], 40);
+        var lmac = hetSafeStr_(a[1], 40);
+        var liface = hetSafeStr_(a[2], 40);
+        if (!lmac && !lip) return;
+        luObjs.push({ ip: lip, mac: lmac, hostname: '', comment: '', iface: liface, totalBytes: 0 });
+      });
+      if (luObjs.length) {
+        HET_shadowResolveRows_({ now: now, site: site, router: router, payloadType: 'live_users', rows: luObjs });
+      }
+    }
     return;
   }
 
@@ -320,14 +360,35 @@ function HET_ingest(e) {
       var deviceSh = hetGetOrCreateSheet_(ss, HET.SHEETS.ENTERPRISE_DEVICES);
       var arpEntries = arpListStr.split(';');
       var devRows = [];
+      var devObjs = [];
       arpEntries.forEach(function(line) {
         if (!line) return;
         var parts = line.split('|');
         if (parts.length >= 3) {
-          devRows.push([now, site, router, hetSafeStr_(parts[0], 40), hetSafeStr_(parts[1], 40), 'bridge1', hetSafeStr_(parts[2], 40), 'Unknown']);
+          var dip = hetSafeStr_(parts[0], 40);
+          var dmac = hetSafeStr_(parts[1], 40);
+          var lastSeen = hetSafeStr_(parts[2], 40);
+          devRows.push([now, site, router, dip, dmac, 'bridge1', lastSeen, 'Unknown']);
+          devObjs.push({
+            ip: dip,
+            mac: dmac,
+            hostname: '',
+            comment: '',
+            iface: 'bridge1',
+            totalBytes: 0
+          });
         }
       });
       if (devRows.length) hetInsertRows_(deviceSh, devRows);
+      if (devObjs.length && typeof HET_shadowResolveRows_ === 'function') {
+        HET_shadowResolveRows_({
+          now: now,
+          site: site,
+          router: router,
+          payloadType: 'enterprise_monitor',
+          rows: devObjs
+        });
+      }
     }
 
     // Parse talkers and store

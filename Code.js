@@ -67,6 +67,41 @@ function doGet(e) {
     if (String(p.admin || '').toLowerCase() === 'runtimehealth') {
       return hetJson_(typeof HET_getRuntimeHealth_ === 'function' ? HET_getRuntimeHealth_() : { ok: false, error: 'Runtime helper missing' });
     }
+    if (String(p.admin || '').toLowerCase() === 'startshadowobs') {
+      return hetJson_(typeof HET_startShadowObservation_ === 'function'
+        ? HET_startShadowObservation_(p.hours || 72)
+        : { ok: false, error: 'Shadow observation helper missing' });
+    }
+    if (String(p.admin || '').toLowerCase() === 'identityvalidation') {
+      return hetJson_(typeof HET_identityValidationReport_ === 'function'
+        ? HET_identityValidationReport_(p.hours || 72)
+        : { ok: false, error: 'Identity validation helper missing' });
+    }
+    if (String(p.admin || '').toLowerCase() === 'runidentityvalidationauto') {
+      return hetJson_(typeof HET_runIdentityValidationAuto_ === 'function'
+        ? HET_runIdentityValidationAuto_()
+        : { ok: false, error: 'Identity auto validation helper missing' });
+    }
+    if (String(p.admin || '').toLowerCase() === 'identityshadow') {
+      return hetJson_(typeof HET_identityShadowHealth_ === 'function'
+        ? HET_identityShadowHealth_()
+        : { ok: false, error: 'Identity shadow helper missing' });
+    }
+    if (String(p.admin || '').toLowerCase() === 'initidentitysheets') {
+      return hetJson_(typeof HET_initIdentitySheets_ === 'function'
+        ? HET_initIdentitySheets_()
+        : { ok: false, error: 'Identity sheet init helper missing' });
+    }
+    if (String(p.admin || '').toLowerCase() === 'syncinterfacesitemap') {
+      return hetJson_(typeof HET_syncInterfaceSiteMapping_ === 'function'
+        ? HET_syncInterfaceSiteMapping_()
+        : { ok: false, error: 'Interface site sync helper missing' });
+    }
+    if (String(p.admin || '').toLowerCase() === 'interfacesitemap') {
+      return hetJson_(typeof HET_interfaceSiteMap_ === 'function'
+        ? { ok: true, map: HET_interfaceSiteMap_() }
+        : { ok: false, error: 'Interface site map helper missing' });
+    }
     if (String(p.admin || '').toLowerCase() === 'runruntimehealthcheck') {
       return hetJson_(typeof runRuntimeHealthCheck === 'function' ? runRuntimeHealthCheck() : { ok: false, error: 'Runtime check helper missing' });
     }
