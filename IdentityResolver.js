@@ -611,3 +611,25 @@ function HET_identityShadowHealth_() {
     quick24h: quick.metrics
   };
 }
+
+function HET_setEnrichedOutput_(value) {
+  var props = HET.props();
+  var v = String(value || '').toUpperCase() === 'YES' ? 'YES' : 'NO';
+  props.setProperty('ENRICHED_OUTPUT_ENABLE', v);
+
+  var cfg = HET.cfg();
+  var shadow = HET_identityShadowHealth_();
+  return {
+    ok: true,
+    mode: 'shadow',
+    enrichedOutput: v,
+    updatedAt: hetFmt_(hetNowDate_()),
+    flags: {
+      IDENTITY_ENRICH_ENABLE: cfg.IDENTITY_ENRICH_ENABLE,
+      SITE_RESOLVE_ENABLE: cfg.SITE_RESOLVE_ENABLE,
+      UNKNOWN_TRIAGE_ENABLE: cfg.UNKNOWN_TRIAGE_ENABLE,
+      ENRICHED_OUTPUT_ENABLE: v
+    },
+    quick24h: shadow.quick24h
+  };
+}

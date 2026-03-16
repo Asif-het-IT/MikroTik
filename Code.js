@@ -82,6 +82,16 @@ function doGet(e) {
         ? HET_runIdentityValidationAuto_()
         : { ok: false, error: 'Identity auto validation helper missing' });
     }
+    if (String(p.admin || '').toLowerCase() === 'phase3enable') {
+      return hetJson_(typeof HET_setEnrichedOutput_ === 'function'
+        ? HET_setEnrichedOutput_('YES')
+        : { ok: false, error: 'Phase 3 helper missing' });
+    }
+    if (String(p.admin || '').toLowerCase() === 'phase3rollback') {
+      return hetJson_(typeof HET_setEnrichedOutput_ === 'function'
+        ? HET_setEnrichedOutput_('NO')
+        : { ok: false, error: 'Phase 3 helper missing' });
+    }
     if (String(p.admin || '').toLowerCase() === 'identityshadow') {
       return hetJson_(typeof HET_identityShadowHealth_ === 'function'
         ? HET_identityShadowHealth_()
