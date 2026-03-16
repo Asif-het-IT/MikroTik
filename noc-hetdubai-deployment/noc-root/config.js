@@ -5,11 +5,13 @@ window.NOC_WEB_CONFIG = {
   apiBase: "/api/cached-api.php",
   // Auto-refresh: 5 seconds (reads from cache, very fast, no backend load)
   // The actual data freshness depends on sync.php cron cadence.
-  refreshMs: 5000,
+  refreshMs: 15000,
   // Request timeout: 5 seconds (cache reads are instant)
   // Apps Script timeout fallback no longer needed for dashboard
   requestTimeoutMs: 5000,
   maxTopUsers: 10,
   bytesDivisor: 1024,
-  showIdentityMeta: true
+  showIdentityMeta: true,
+  appTitle: "het NOC",
+  defaultTheme: "auto"
 };

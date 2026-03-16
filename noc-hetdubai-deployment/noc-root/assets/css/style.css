@@ -12,6 +12,19 @@
   --card-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
   --card-glow: 0 0 30px rgba(0, 255, 136, 0.3);
   --text-glow: 0 0 8px rgba(0, 255, 136, 0.5);
+  --header-height: 96px;
+}
+
+body.light-mode {
+  --noc-bg: #f4f7fb;
+  --noc-bg-light: #ffffff;
+  --noc-text: #0b5d3c;
+  --noc-text-dim: #2e6f58;
+  --noc-border: rgba(11, 93, 60, 0.2);
+  --noc-border-glow: rgba(11, 93, 60, 0.5);
+  --card-shadow: 0 6px 18px rgba(11, 93, 60, 0.12);
+  --card-glow: 0 10px 24px rgba(11, 93, 60, 0.18);
+  --text-glow: none;
 }
 
 * {
@@ -64,6 +77,9 @@ body {
 
 /* ============ HEADER ============ */
 .noc-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
   padding: 20px 40px;
   border-bottom: 2px solid var(--noc-border-glow);
   background: linear-gradient(180deg, rgba(0, 255, 136, 0.05) 0%, rgba(0, 255, 136, 0.01) 100%);
@@ -74,6 +90,56 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: 20px;
+}
+
+.header-content {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.header-subtitle {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.refresh-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.control-label {
+  font-size: 12px;
+  opacity: 0.8;
+  letter-spacing: 0.5px;
+}
+
+.control-select {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--noc-border-glow);
+  background: rgba(10, 14, 39, 0.7);
+  color: var(--noc-text);
+  padding: 0 12px;
+  font-family: "Space Mono", "Courier Prime", monospace;
+  font-size: 13px;
+}
+
+body.light-mode .control-select {
+  background: #ffffff;
 }
 
 .logo-badge {
@@ -124,7 +190,8 @@ body {
 }
 
 .control-btn {
-  padding: 8px 16px;
+  min-height: 44px;
+  padding: 10px 16px;
   background: transparent;
   border: 1px solid var(--noc-text);
   color: var(--noc-text);
@@ -152,6 +219,35 @@ main {
   padding: 30px 40px;
   max-width: 1800px;
   margin: 0 auto;
+}
+
+.app-splash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(0, 255, 136, 0.15), transparent 45%), var(--noc-bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 12000;
+  gap: 10px;
+  transition: opacity 260ms ease;
+}
+
+.app-splash.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-splash-logo {
+  font-size: 28px;
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+
+.app-splash-sub {
+  font-size: 13px;
+  opacity: 0.8;
 }
 
 /* ============ SECTIONS ============ */
@@ -594,6 +690,23 @@ main {
   .noc-header {
     padding: 12px 20px;
     gap: 12px;
+    top: 0;
+  }
+
+  .header-content,
+  .header-left,
+  .header-right,
+  .refresh-info {
+    width: 100%;
+  }
+
+  .refresh-info {
+    gap: 8px;
+  }
+
+  .control-select,
+  .control-btn {
+    flex: 1 1 140px;
   }
 
   .noc-header h1 {
@@ -656,6 +769,16 @@ main {
     padding: 10px 16px;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .control-label {
+    width: 100%;
+  }
+
+  .control-select,
+  .control-btn {
+    flex: 1 1 100%;
+    font-size: 12px;
   }
 
   .noc-header h1 {

@@ -3,14 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0e27" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="het NOC" />
   <title>het NOC Dashboard — Live Operations Center</title>
   <link rel="icon" type="image/x-icon" href="assets/img/het.ico" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon-180.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/style.css?v=20260311prod" />
 </head>
 <body>
+  <div id="appSplash" class="app-splash" aria-live="polite">
+    <div class="app-splash-logo">het NOC</div>
+    <div class="app-splash-sub">Loading live dashboard...</div>
+  </div>
   <div class="scanlines"></div>
   <div class="grid-bg"></div>
 
@@ -27,6 +37,10 @@
       <div class="header-right">
         <div class="status-line" id="statusLine">● SYSTEM ONLINE</div>
         <div class="refresh-info">
+          <label for="siteSelector" class="control-label">Site</label>
+          <select id="siteSelector" class="control-select" aria-label="Select site or branch"></select>
+          <button id="themeToggleBtn" class="control-btn" type="button" aria-label="Toggle dark mode">THEME</button>
+          <button id="installBtn" class="control-btn" type="button" aria-label="Install app" hidden>INSTALL APP</button>
           <span id="lastRefresh">Last sync: initializing...</span>
           <button id="refreshBtn" class="control-btn">REFRESH</button>
         </div>

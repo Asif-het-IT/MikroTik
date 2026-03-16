@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>het NOC - Offline</title>
+  <style>
+    :root {
+      --bg: #0a0e27;
+      --card: #121a3f;
+      --text: #00ff88;
+      --muted: #8fd9b6;
+      --border: rgba(0, 255, 136, 0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 20% 20%, rgba(0, 255, 136, 0.18), transparent 45%), var(--bg);
+      color: var(--text);
+      font-family: "Space Mono", "Courier Prime", monospace;
+      padding: 16px;
+    }
+    .card {
+      width: min(560px, 100%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+    h1 {
+      margin: 0 0 10px;
+      letter-spacing: 1px;
+      font-size: 20px;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    a {
+      color: var(--text);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>het NOC is offline</h1>
+    <p>Internet connection temporary unavailable hai. Connection wapas aate hi dashboard auto refresh ho jayega.</p>
+    <div class="actions">
+      <a href="./index.html">Retry Dashboard</a>
+      <a href="./enterprise-monitor.html">Open Enterprise View</a>
+    </div>
+  </main>
+</body>
+</html>
