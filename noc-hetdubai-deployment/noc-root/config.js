@@ -10,5 +10,6 @@ window.NOC_WEB_CONFIG = {
   // Apps Script timeout fallback no longer needed for dashboard
   requestTimeoutMs: 5000,
   maxTopUsers: 10,
-  bytesDivisor: 1024
+  bytesDivisor: 1024,
+  showIdentityMeta: true
 };

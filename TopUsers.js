@@ -261,6 +261,11 @@ function HET_computeTopUsers_(period) {
       comment: d.comment || rec.comment || 'n/a',
       deviceType: d.deviceType || 'unknown',
       preferredName: d.preferredName || d.comment || d.hostname || rec.hostname || mac,
+      resolvedSite: d.resolvedSite || '',
+      nameSource: d.nameSource || '',
+      siteSource: d.siteSource || '',
+      confidence: d.confidence || '',
+      lastSeenInterface: d.lastSeenInterface || rec.iface || '',
       upload: upload,
       download: download,
       total: upload + download,
@@ -355,18 +360,27 @@ function HET_getTopUsers_(limit, period) {
     return computed.slice(0, take);
   }
 
+  var deviceMap = HET_deviceMap_();
+
   return rows.slice(0, take).map(function(r) {
+    var mac = HET_macKey_(r[3]);
+    var d = deviceMap[mac] || {};
     return {
       rank: hetToInt_(r[1], 0),
       ip: hetSafeStr_(r[2], 40) || 'n/a',
-      mac: HET_macKey_(r[3]),
+      mac: mac,
       hostname: hetSafeStr_(r[4], 120) || 'unknown',
       comment: hetSafeStr_(r[5], 120) || 'n/a',
       deviceType: hetSafeStr_(r[6], 60) || 'unknown',
       upload: hetToNum_(r[7], 0),
       download: hetToNum_(r[8], 0),
       total: hetToNum_(r[9], 0),
-      preferredName: hetSafeStr_(r[5], 120) || hetSafeStr_(r[4], 120) || HET_macKey_(r[3]) || hetSafeStr_(r[2], 40)
+      preferredName: hetSafeStr_(r[5], 120) || hetSafeStr_(r[4], 120) || mac || hetSafeStr_(r[2], 40),
+      resolvedSite: d.resolvedSite || '',
+      nameSource: d.nameSource || '',
+      siteSource: d.siteSource || '',
+      confidence: d.confidence || '',
+      lastSeenInterface: d.lastSeenInterface || ''
     };
   });
 }

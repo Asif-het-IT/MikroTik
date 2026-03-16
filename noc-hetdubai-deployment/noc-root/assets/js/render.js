@@ -182,7 +182,15 @@ window.NocRender = (function () {
 
   function topRowHtml(item) {
     const name = item.preferredName || item.comment || item.hostname || "unknown";
-    return `<tr><td>${item.rank || "-"}</td><td>${name}</td><td>${item.ip || "n/a"}</td><td>${fmtBytes(item.total || 0)}</td></tr>`;
+    const showIdentityMeta = window.NOC_WEB_CONFIG && window.NOC_WEB_CONFIG.showIdentityMeta !== false;
+    const metaParts = [];
+    if (showIdentityMeta && item.resolvedSite) metaParts.push(`Site ${item.resolvedSite}`);
+    if (showIdentityMeta && item.confidence) metaParts.push(`Conf ${item.confidence}`);
+    if (showIdentityMeta && item.lastSeenInterface) metaParts.push(`IF ${item.lastSeenInterface}`);
+    const metaHtml = metaParts.length
+      ? `<div style="font-size:11px;opacity:0.75;margin-top:2px;">${metaParts.join(' | ')}</div>`
+      : "";
+    return `<tr><td>${item.rank || "-"}</td><td>${name}${metaHtml}</td><td>${item.ip || "n/a"}</td><td>${fmtBytes(item.total || 0)}</td></tr>`;
   }
 
   function renderUsers(topDaily, topMonthly) {
